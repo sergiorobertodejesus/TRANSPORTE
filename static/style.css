@@ -1,0 +1,184 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background: #153b50;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.container {
+    width: 100%;
+    max-width: 600px;
+    min-height: 100vh;
+    background: #ffffff;
+    text-align: center;
+}
+
+/* ==========================================
+   BANNER DA EMPRESA
+========================================== */
+
+.banner {
+    width: 100%;
+    overflow: hidden;
+    background: #e8eef3;
+}
+
+.banner img {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+}
+
+/* ==========================================
+   CONTEÚDO
+========================================== */
+
+.conteudo {
+    padding: 30px 30px 40px;
+}
+
+.conteudo h2 {
+    color: #1d4f91;
+    margin-bottom: 10px;
+    font-size: 26px;
+}
+
+.conteudo p {
+    color: #666;
+    margin-bottom: 30px;
+    font-size: 16px;
+}
+
+/* ==========================================
+   BOTÕES
+========================================== */
+
+.botoes {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.botao {
+    display: block;
+    padding: 17px;
+    border-radius: 10px;
+    text-decoration: none;
+    font-size: 18px;
+    font-weight: bold;
+    color: white;
+    transition: 0.2s;
+}
+
+.motorista {
+    background: #168a45;
+}
+
+.admin {
+    background: #1d4f91;
+}
+
+.botao:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+
+
+
+
+/* ================================
+   LOGIN DO MOTORISTA
+   ================================ */
+
+.login-container {
+    width: 90%;
+    max-width: 420px;
+    margin: 70px auto;
+    padding: 35px;
+    background: white;
+    border-radius: 18px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+    text-align: center;
+}
+
+.login-container h1 {
+    margin-bottom: 30px;
+    color: #145963;
+    font-size: 28px;
+}
+
+.login-container form {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+}
+
+.login-container label {
+    margin-bottom: 7px;
+    font-weight: bold;
+    color: #333;
+}
+
+.login-container input {
+    padding: 13px;
+    margin-bottom: 20px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 16px;
+    box-sizing: border-box;
+}
+
+.login-container input:focus {
+    outline: none;
+    border-color: #1D7882;
+    box-shadow: 0 0 0 2px rgba(29, 120, 130, 0.15);
+}
+
+.login-container button {
+    padding: 14px;
+    border: none;
+    border-radius: 8px;
+    background: #1D7882;
+    color: white;
+    font-size: 17px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.login-container button:hover {
+    background: #0F4D55;
+}
+
+.login-container .mensagem-erro {
+    margin: 0 0 18px 0;
+    padding: 10px;
+    border-radius: 7px;
+    background: #f8d7da;
+    color: #842029;
+    text-align: center;
+    font-size: 14px;
+}
+
+.login-container > a {
+    display: inline-block;
+    margin-top: 22px;
+    color: #145963;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.login-container > a:hover {
+    text-decoration: underline;
+}
+```

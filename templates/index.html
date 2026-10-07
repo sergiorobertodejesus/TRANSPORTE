@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>ER Transporte</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <div class="container">
+
+        <header class="banner">
+            <img src="{{ url_for('static', filename='img/banner-transporte.jpg') }}"
+                 alt="ER Transporte - Conforto, Segurança e Confiança">
+        </header>
+
+        <main class="conteudo">
+
+            <h2>Acesso ao Sistema</h2>
+
+            <p>
+                Selecione uma opção para acessar a plataforma.
+            </p>
+
+            <div class="botoes">
+
+             <a href="{{ url_for('login_motorista') }}" class="botao motorista">
+    Acesso Motorista
+</a>
+
+                <a href="#" class="botao admin">
+                    Acesso Administrador
+                </a>
+
+            </div>
+
+        </main>
+
+    </div>
+
+</body>
+
+</html>
+
