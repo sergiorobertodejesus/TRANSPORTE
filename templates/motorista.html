@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Área do Motorista - ER Transporte</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f2f4f5;
+            color: #222;
+        }
+
+        .banner {
+            width: 100%;
+            display: block;
+        }
+
+        .container {
+            max-width: 760px;
+            margin: 25px auto;
+            padding: 0 15px 30px;
+        }
+
+        .identificacao, .bloco {
+            background: white;
+            padding: 22px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            box-shadow: 0 3px 10px rgba(0,0,0,.08);
+        }
+
+        h1 {
+            font-size: 25px;
+            color: #145963;
+            margin-top: 0;
+        }
+
+        h2 {
+            color: #145963;
+            font-size: 20px;
+            margin-top: 0;
+        }
+
+        .dados {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .campo {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            margin-bottom: 15px;
+        }
+
+        label, .pergunta strong {
+            font-weight: bold;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 11px;
+            border: 1px solid #cbd2d5;
+            border-radius: 7px;
+            font-size: 16px;
+        }
+
+        input[type="radio"] {
+            width: auto;
+            margin-right: 5px;
+        }
+
+        input[type="file"] {
+            background: #f8f9fa;
+            font-size: 14px;
+        }
+
+        .pergunta {
+            padding: 14px 0;
+            border-bottom: 1px solid #e1e5e7;
+        }
+
+        .pergunta:last-child {
+            border-bottom: none;
+        }
+
+        .opcoes {
+            display: flex;
+            gap: 25px;
+            margin-top: 12px;
+        }
+
+        .opcoes label {
+            font-weight: normal;
+            cursor: pointer;
+        }
+
+        .botoes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 18px;
+        }
+
+        button {
+            flex: 1;
+            min-width: 180px;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .iniciar {
+            background: #145963;
+            color: white;
+        }
+
+        .encerrar {
+            background: #777;
+            color: white;
+        }
+
+        .sair {
+            display: inline-block;
+            color: #145963;
+            margin-top: 15px;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .observacao {
+            color: #555;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        @media (max-width: 480px) {
+            .identificacao, .bloco {
+                padding: 16px;
+            }
+
+            h1 {
+                font-size: 22px;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    {% with mensagens = get_flashed_messages() %}
+        {% if mensagens %}
+            <div class="mensagens">
+                {% for mensagem in mensagens %}
+                    <p>{{ mensagem }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <img
+        src="{{ url_for('static', filename='banner-transporte.jpg') }}"
+        alt="ER Transporte"
+        class="banner"
+    >
+
+
+    <main class="container">
+
+        <form method="POST" action="{{ url_for('jornada') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <section class="identificacao">
+            <h1>Área do Motorista</h1>
+
+            <div class="dados">
+                <div class="campo">
+                    <label>Motorista</label>
+                    <input
+                        type="text"
+                        value="{{ nome_motorista | default('Motorista autenticado', true) }}"
+                        readonly
+                    >
+                </div>
+
+                <div class="campo">
+                    <label>Veículo da escala</label>
+                    <input
+                        type="text"
+                        value="{{ veiculo }}{% if placa %} - {{ placa }}{% endif %}"
+
+                        readonly
+                    >
+                </div>
+            </div>
+
+            <p class="observacao">
+                O veículo e o turno são definidos pela empresa conforme a escala.
+            </p>
+        </section>
+
+        {% if not jornada_aberta %}
+        <section class="bloco">
+            <h2>Checklist do veículo</h2>
+            <p class="observacao">
+                Marque SIM quando o item estiver em boas condições.
+                Nas perguntas sobre avarias, SIM significa que foi identificado
+                algum problema.
+            </p>
+
+            <div class="pergunta">
+                <strong>1. Os retrovisores estão em boas condições?</strong>
+                <div class="opcoes">
+                    <label><input type="radio" name="retrovisores" value="sim" required> SIM</label>
+                    <label><input type="radio" name="retrovisores" value="nao"> NÃO</label>
+                </div>
+            </div>
+
+            <div class="pergunta">
+                <strong>2. O farol alto está funcionando?</strong>
+                <div class="opcoes">
+                    <label><input type="radio" name="farol_alto" value="sim" required> SIM</label>
+                    <label><input type="radio" name="farol_alto" value="nao"> NÃO</label>
+                </div>
+            </div>
+
+            <div class="pergunta">
+                <strong>3. A seta dianteira está funcionando?</strong>
+                <div class="opcoes">
+                    <label><input type="radio" name="seta_dianteira" value="sim" required> SIM</label>
+                    <label><input type="radio" name="seta_dianteira" value="nao"> NÃO</label>
+                </div>
+            </div>
+
+            <div class="pergunta">
+                <strong>4. A seta traseira está funcionando?</strong>
+                <div class="opcoes">
+                    <label><input type="radio" name="seta_traseira" value="sim" required> SIM</label>
+                    <label><input type="radio" name="seta_traseira" value="nao"> NÃO</label>
+                </div>
+            </div>
+
+            <div class="pergunta">
+                <strong>5. As luzes de freio estão funcionando?</strong>
+                <div class="opcoes">
+                    <label><input type="radio" name="luz_freio" value="sim" required> SIM</label>
+                    <label><input type="radio" name="luz_freio" value="nao"> NÃO</label>
+                </div>
+            </div>
+
+            <div class="pergunta">
+                <strong>6. O brake-light está funcionando?</strong>
+                <div class="opcoes">
+                    <label><input type="radio" name="brake_light" value="sim" required> SIM</label>
+                    <label><input type="radio" name="brake_light" value="nao"> NÃO</label>
+                </div>
+            </div>
+
+            <div class="pergunta">
+                <strong>7. Os pneus estão em boas condições?</strong>
+                <div class="opcoes">
+                    <label><input type="radio" name="pneus" value="sim" required> SIM</label>
+                    <label><input type="radio" name="pneus" value="nao"> NÃO</label>
+                </div>
+            </div>
+
+            <div class="pergunta">
+                <strong>8. Existem avarias nos bancos?</strong>
+                <div class="opcoes">
+                    <label><input type="radio" name="avarias_bancos" value="sim" required> SIM</label>
+                    <label><input type="radio" name="avarias_bancos" value="nao"> NÃO</label>
+                </div>
+            </div>
+
+            <div class="pergunta">
+                <strong>9. Existem avarias no painel?</strong>
+                <div class="opcoes">
+                    <label><input type="radio" name="avarias_painel" value="sim" required> SIM</label>
+                    <label><input type="radio" name="avarias_painel" value="nao"> NÃO</label>
+                </div>
+            </div>
+
+            <div class="pergunta">
+                <strong>10. Existem riscos nas portas?</strong>
+                <div class="opcoes">
+                    <label><input type="radio" name="riscos_portas" value="sim" required> SIM</label>
+                    <label><input type="radio" name="riscos_portas" value="nao"> NÃO</label>
+                </div>
+            </div>
+
+            <div class="pergunta">
+                <strong>11. Existem outras avarias?</strong>
+                <div class="opcoes">
+                    <label><input type="radio" name="outras_avarias" value="sim" required> SIM</label>
+                    <label><input type="radio" name="outras_avarias" value="nao"> NÃO</label>
+                </div>
+
+                <div class="campo" style="margin-top: 15px;">
+    <label for="descricao_avarias">Descreva as avarias, se houver</label>
+    <textarea id="descricao_avarias" name="descricao_avarias" rows="3"></textarea>
+</div>
+
+<div class="campo" style="margin-top: 15px;">
+    <label for="foto_avaria">Foto da avaria (opcional)</label>
+    <input
+        id="foto_avaria"
+        name="foto_avaria"
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        capture="environment"
+    >
+    <small>Se houver avaria, registre a descrição e, se possível, tire uma foto.</small>
+</div>
+            </div>
+        </section>
+
+        <section class="bloco">
+            <h2>Início da jornada</h2>
+
+            <div class="dados">
+                <div class="campo">
+                    <label for="km_inicial">Quilometragem inicial (km)</label>
+                    <input id="km_inicial" name="km_inicial" type="number" min="0" step="1">
+                </div>
+
+                <div class="campo">
+                    <label for="bateria_inicial">Bateria inicial (%)</label>
+                    <input id="bateria_inicial" name="bateria_inicial" type="number" min="0" max="100">
+                </div>
+
+                <div class="campo">
+                    <label for="foto_km_inicial">Foto do painel/quilometragem</label>
+                    <input id="foto_km_inicial" name="foto_km_inicial" type="file" accept="image/*" capture="environment">
+                </div>
+            </div>
+
+            <div class="botoes">
+                <button type="submit" name="acao" value="iniciar" class="iniciar">Iniciar Jornada</button>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if jornada_aberta %}
+        <section class="bloco">
+            <h2>Encerramento da jornada</h2>
+
+            <div class="dados">
+                <div class="campo">
+                    <label for="km_final">Quilometragem final (km)</label>
+                    <input id="km_final" name="km_final" type="number" min="0" step="1">
+                </div>
+
+                <div class="campo">
+                    <label for="bateria_final">Bateria final (%)</label>
+                    <input id="bateria_final" name="bateria_final" type="number" min="0" max="100">
+                </div>
+
+                <div class="campo">
+                    <label for="foto_km_final">Foto final do painel</label>
+                    <input id="foto_km_final" name="foto_km_final" type="file" accept="image/*" capture="environment">
+                </div>
+            </div>
+        </section>
+
+        <section class="bloco">
+            <h2>Ganhos da jornada</h2>
+
+            <div class="dados">
+                <div class="campo">
+                    <label for="uber_total">Total Uber (R$)</label>
+                    <input id="uber_total" name="uber_total" type="number" min="0" step="0.01">
+                </div>
+
+                <div class="campo">
+                    <label for="uber_dinheiro">Uber recebido em dinheiro (R$)</label>
+                    <input id="uber_dinheiro" name="uber_dinheiro" type="number" min="0" step="0.01">
+                </div>
+
+                <div class="campo">
+                    <label for="99_total">Total 99 (R$)</label>
+                    <input id="99_total" name="99_total" type="number" min="0" step="0.01">
+                </div>
+
+                <div class="campo">
+                    <label for="99_dinheiro">99 recebido em dinheiro (R$)</label>
+                    <input id="99_dinheiro" name="99_dinheiro" type="number" min="0" step="0.01">
+                </div>
+
+                <div class="campo">
+                    <label for="corridas_particulares">Corridas particulares (R$)</label>
+                    <input id="corridas_particulares" name="corridas_particulares" type="number" min="0" step="0.01">
+                </div>
+
+                <div class="campo">
+                    <label for="pix_empresa">PIX repassado à empresa (R$)</label>
+                    <input id="pix_empresa" name="pix_empresa" type="number" min="0" step="0.01" value="0">
+                </div>
+            </div>
+        </section>
+
+        <section class="bloco">
+            <h2>Despesas da jornada</h2>
+
+            <div class="dados">
+                <div class="campo">
+                    <label for="recarga">Recarga elétrica (R$)</label>
+                    <input id="recarga" name="recarga" type="number" min="0" step="0.01">
+                </div>
+
+                <div class="campo">
+                    <label for="combustivel">Combustível (R$)</label>
+                    <input id="combustivel" name="combustivel" type="number" min="0" step="0.01">
+                </div>
+
+                <div class="campo">
+                    <label for="outras_despesas">Outras despesas (R$)</label>
+                    <input id="outras_despesas" name="outras_despesas" type="number" min="0" step="0.01">
+                </div>
+            </div>
+
+            <div class="campo">
+                <label>Identificou alguma avaria durante esta jornada?</label>
+                <label><input type="radio" name="avaria_final" value="sim" required> SIM</label>
+                <label><input type="radio" name="avaria_final" value="nao" required> NÃO</label>
+            </div>
+
+            <div class="campo" id="campo_descricao_avaria_final" hidden>
+                <label for="descricao_avaria_final">Descreva a avaria identificada</label>
+                <textarea id="descricao_avaria_final" name="descricao_avaria_final" rows="3"></textarea>
+            </div>
+
+            <div class="campo" id="campo_foto_avaria_final" hidden>
+                <label for="foto_avaria_final">Foto da avaria (opcional)</label>
+                <input id="foto_avaria_final" name="foto_avaria_final" type="file" accept="image/jpeg,image/png,image/webp" capture="environment">
+            </div>
+
+            <div class="campo">
+                <label for="observacoes">Observações</label>
+                <textarea id="observacoes" name="observacoes" rows="3"></textarea>
+            </div>
+
+            <div class="botoes">
+                <button type="submit" name="acao" value="encerrar" class="encerrar" formnovalidate>Encerrar Jornada</button>
+            </div>
+
+        </section>
+
+        {% endif %}
+
+        <a class="sair" href="{{ url_for('sair') }}">Sair</a>
+
+<script>
+document.querySelectorAll('input[name="avaria_final"]').forEach(function(opcao) {
+    opcao.addEventListener('change', function() {
+        const mostrar = document.querySelector('input[name="avaria_final"]:checked')?.value === 'sim';
+        document.getElementById('campo_descricao_avaria_final').hidden = !mostrar;
+        document.getElementById('campo_foto_avaria_final').hidden = !mostrar;
+        document.getElementById('descricao_avaria_final').required = mostrar;
+    });
+});
+</script>
+
+        </form>
+
+    </main>
+
+</body>
+</html>

@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Administrativo - ER Transporte</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .admin-painel { max-width: 1200px; margin: 24px auto; padding: 16px; }
+        .admin-topo { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+        .admin-indicadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin: 24px 0; }
+        .admin-card { background: #fff; border-radius: 10px; padding: 18px; box-shadow: 0 2px 8px #0001; }
+        .admin-card h3 { margin-top: 0; font-size: 15px; }
+        .admin-numero { font-size: 25px; font-weight: bold; color: #153b50; overflow-wrap: anywhere; }
+        .admin-filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; align-items: end; background: #fff; padding: 18px; border-radius: 10px; margin: 20px 0; box-shadow: 0 2px 8px #0001; }
+        .admin-filtros label { display: block; font-weight: bold; margin-bottom: 6px; }
+        .admin-filtros select, .admin-filtros input { box-sizing: border-box; width: 100%; min-width: 0; padding: 10px; border: 1px solid #bbb; border-radius: 6px; background: white; }
+        .admin-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+        .admin-botao { display: inline-block; border: 0; border-radius: 6px; padding: 11px 15px; background: #153b50; color: white; text-decoration: none; cursor: pointer; text-align: center; }
+        .admin-secundario { background: #e7edf0; color: #153b50; }
+        .admin-tabela { overflow-x: auto; border-radius: 8px; }
+        .admin-tabela table { width: 100%; border-collapse: collapse; background: white; }
+        .admin-tabela th, .admin-tabela td { padding: 10px; border-bottom: 1px solid #ddd; text-align: left; white-space: nowrap; }
+        .admin-tabela th { background: #153b50; color: white; }
+        .admin-tabela td.numero { text-align: right; font-variant-numeric: tabular-nums; }
+        .admin-alerta { color: #a32626; font-weight: bold; }
+        .admin-bom { color: #176b3a; font-weight: bold; }
+        .admin-sair { background: #153b50; color: white; padding: 6px 12px; border-radius: 6px; text-decoration: none; border: 0; cursor: pointer; font-size: 14px; line-height: 1.2; }
+        .admin-nota { color: #555; font-size: 14px; }
+        @media (max-width: 600px) {
+            .admin-painel { margin: 8px auto; padding: 10px; }
+            .admin-numero { font-size: 22px; }
+            .admin-card { padding: 14px; }
+        }
+    </style>
+</head>
+<body>
+    <main class="admin-painel">
+        <header class="admin-topo">
+            <div>
+                <h1>ER TRANSPORTE</h1>
+                <p>Painel Administrativo — Olá, {{ usuario }}.</p>
+            </div>
+            <form method="POST" action="{{ url_for('sair_admin') }}" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="admin-sair">Sair</button>
+            </form>
+        </header>
+
+        <section class="admin-indicadores">
+            <article class="admin-card">
+                <h3>Jornadas em andamento</h3>
+                <div class="admin-numero">{{ em_andamento }}</div>
+            </article>
+            <article class="admin-card">
+                <h3>Jornadas encerradas</h3>
+                <div class="admin-numero">{{ encerradas }}</div>
+            </article>
+            <article class="admin-card">
+                <h3>Faturamento bruto — consulta</h3>
+                <div class="admin-numero">R$ {{ "%.2f"|format(faturamento_total) }}</div>
+            </article>
+            <article class="admin-card">
+                <h3>Despesas — consulta</h3>
+                <div class="admin-numero">R$ {{ "%.2f"|format(despesas_total) }}</div>
+            </article>
+            <article class="admin-card">
+                <h3>Jornadas encontradas</h3>
+                <div class="admin-numero">{{ jornadas|length }}</div>
+            </article>
+        </section>
+        {% with mensagens = get_flashed_messages(with_categories=true) %}
+            {% if mensagens %}
+                {% for categoria, mensagem in mensagens %}
+                    <div style="padding:12px; margin:12px 0; border-radius:6px;
+                                background:#e7edf0; color:#153b50;"
+                         role="status">
+                        {{ mensagem }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <section class="admin-card" style="margin: 24px 0;">
+        <h2>Filtros do histórico</h2>
+        <form class="admin-filtros" method="get" action="{{ url_for('painel_admin') }}">
+            <div>
+                <label for="motorista_id">Motorista</label>
+                <select id="motorista_id" name="motorista_id">
+                    <option value="">Todos os motoristas</option>
+                    {% for m in motoristas %}
+                    <option value="{{ m.id }}" {% if filtro_motorista|string == m.id|string %}selected{% endif %}>{{ m.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="veiculo_id">Veículo</label>
+                <select id="veiculo_id" name="veiculo_id">
+                    <option value="">Todos os veículos</option>
+                    {% for v in veiculos %}
+                    <option value="{{ v.id }}" {% if filtro_veiculo|string == v.id|string %}selected{% endif %}>{{ v.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="data_inicio">Data inicial</label>
+                <input type="date" id="data_inicio" name="data_inicio" value="{{ filtro_data_inicio }}">
+            </div>
+            <div>
+                <label for="data_fim">Data final</label>
+                <input type="date" id="data_fim" name="data_fim" value="{{ filtro_data_fim }}">
+            </div>
+                    <div class="admin-acoes">
+                <button class="admin-botao" type="submit">
+                    Filtrar
+                </button>
+
+                <a class="admin-botao admin-secundario"
+                   href="{{ url_for('painel_admin') }}">
+                    Limpar
+                </a>
+
+                <a class="admin-botao"
+                   href="{{ url_for('exportar_relatorio_excel',
+                       motorista_id=filtro_motorista,
+                       veiculo_id=filtro_veiculo,
+                       data_inicio=filtro_data_inicio,
+                       data_fim=filtro_data_fim) }}">
+                    Exportar Excel
+                </a>
+            </div>
+        </form>
+
+        <h2>Histórico de jornadas</h2>
+        <p class="admin-nota">O faturamento bruto considera Uber + 99. As despesas aparecem separadamente e não são descontadas do indicador R$/km. O resumo financeiro acompanha os filtros selecionados.</p>
+
+        <div class="admin-tabela">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Motorista</th>
+                        <th>Veículo / Placa</th>
+                        <th>Início</th>
+                        <th>Encerramento</th>
+                        <th>Status</th>
+                        <th>KM rodados</th>
+                        <th>Uber</th>
+                        <th>99</th>
+                        <th>Dinheiro Uber</th>
+                        <th>Dinheiro 99</th>
+                        <th>Dinheiro total recebido</th>
+                        <th>Corridas particulares</th>
+                        <th>Faturamento bruto</th>
+                        <th>PIX repassado à empresa</th>
+                        <th>Despesas</th>
+                        <th>R$/km</th>
+                        <th>Painel inicial</th>
+                        <th>Painel final</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for j in jornadas %}
+                    <tr>
+                        <td>{{ j.id }}</td>
+                        <td>{{ j.motorista }}</td>
+                        <td>{{ j.veiculo }}{% if j.placa %} — {{ j.placa }}{% endif %}</td>
+                        <td>{{ j.data_inicio[8:10] ~ '/' ~ j.data_inicio[5:7] ~ '/' ~ j.data_inicio[0:4] ~ ' ' ~ j.data_inicio[11:16] if j.data_inicio else '—' }}</td>
+                        <td>{{ j.data_fim[8:10] ~ '/' ~ j.data_fim[5:7] ~ '/' ~ j.data_fim[0:4] ~ ' ' ~ j.data_fim[11:16] if j.data_fim else '—' }}</td>
+                        <td>{{ 'Em andamento' if j.status == 'EM_ANDAMENTO' else 'Encerrada' if j.status == 'ENCERRADA' else j.status }}</td>
+                        <td class="numero">{{ j.distancia if j.distancia is not none else '—' }}</td>
+                        <td class="numero">R$ {{ "%.2f"|format(j.uber) }}</td>
+                        <td class="numero">R$ {{ "%.2f"|format(j.noventa_nove) }}</td>
+                        <td class="numero">R$ {{ "%.2f"|format(j.uber_dinheiro) }}</td>
+                        <td class="numero">R$ {{ "%.2f"|format(j.noventa_nove_dinheiro) }}</td>
+                        <td class="numero">R$ {{ "%.2f"|format(j.dinheiro_total) }}</td>
+                        <td class="numero">R$ {{ "%.2f"|format(j.corridas_particulares) }}</td>
+                        <td class="numero">R$ {{ "%.2f"|format(j.faturamento) }}</td>
+                        <td class="numero">R$ {{ "%.2f"|format(j.pix_empresa) }}</td>
+                        <td class="numero">R$ {{ "%.2f"|format(j.despesas) }}</td>
+                        <td class="numero">
+                            {% if j.por_km is not none %}
+                                <span class="{{ 'admin-bom' if j.por_km >= 2 else 'admin-alerta' }}">R$ {{ "%.2f"|format(j.por_km) }}</span>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                                                <td>
+                            {% if j.foto_km_inicial %}
+                                <a href="{{ url_for('foto_jornada', nome_arquivo=j.foto_km_inicial) }}" target="_blank" rel="noopener noreferrer">Ver foto</a>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if j.foto_km_final %}
+                                <a href="{{ url_for('foto_jornada', nome_arquivo=j.foto_km_final) }}" target="_blank" rel="noopener noreferrer">Ver foto</a>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="19">Nenhuma jornada encontrada com os filtros selecionados.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        </section>
+
+
+       <section class="admin-card" style="margin: 24px 0;">
+    <h2>Cadastrar veículo</h2>
+
+    <p class="admin-nota">
+        Cadastre os veículos da empresa. A placa pode ser preenchida depois.
+    </p>
+
+    <form method="post"
+          action="{{ url_for('cadastrar_veiculo') }}"
+          class="admin-acoes">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div>
+            <label for="veiculo_nome">Nome do veículo</label>
+            <input id="veiculo_nome"
+                   type="text"
+                   name="nome"
+                   minlength="2"
+                   maxlength="50"
+                   placeholder="Ex.: BYD GS"
+                   required>
+        </div>
+
+        <div>
+            <label for="veiculo_placa">Placa (opcional)</label>
+            <input id="veiculo_placa"
+                   type="text"
+                   name="placa"
+                   maxlength="8"
+                   placeholder="Ex.: ABC1D23">
+        </div>
+
+        <div>
+            <button class="admin-botao" type="submit">
+                Cadastrar veículo
+            </button>
+        </div>
+    </form>
+</section>
+
+<section class="admin-card" style="margin: 24px 0;">
+    <h2>Veículos cadastrados</h2>
+
+    <div class="admin-tabela">
+        <table>
+            <thead>
+                <tr>
+                    <th>Veículo</th>
+                    <th>Placa</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for v in veiculos %}
+                <tr>
+                    <td>{{ v.nome }}</td>
+                    <td>
+                        <form method="POST"
+                              action="{{ url_for('editar_veiculo') }}">
+                            <input type="hidden" name="csrf_token"
+                                   value="{{ csrf_token() }}">
+                            <input type="hidden" name="veiculo_id"
+                                   value="{{ v.id }}">
+                            <input type="text" name="placa"
+                                   value="{{ v.placa or '' }}"
+                                   placeholder="ABC1D23"
+                                   maxlength="7"
+                                   style="width: 110px;">
+                            <button type="submit">Salvar</button>
+                        </form>
+                    </td>
+                    <td>{% if v.ativo %}Ativo{% else %}Inativo{% endif %}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3">Nenhum veículo cadastrado.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+
+<section class="admin-card" style="margin: 24px 0;">
+    <h2>Cadastrar motorista</h2>
+
+
+
+    <p class="admin-nota">
+        Cadastre o motorista, seu acesso inicial e a escala de trabalho.
+    </p>
+
+    <form method="post"
+          action="{{ url_for('cadastrar_motorista') }}"
+          class="admin-filtros">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div>
+            <label for="novo_nome">Nome completo</label>
+            <input id="novo_nome" type="text" name="nome"
+                   minlength="2" maxlength="100" required>
+        </div>
+
+        <div>
+            <label for="novo_usuario">Usuário de acesso</label>
+            <input id="novo_usuario" type="text" name="usuario"
+                   minlength="3" maxlength="30"
+                   pattern="[a-z0-9._-]+"
+                   title="Use letras minúsculas, números, ponto, hífen ou sublinhado."
+                   autocomplete="off" required>
+        </div>
+
+        <div>
+            <label for="nova_senha">Senha inicial</label>
+            <input id="nova_senha" type="password" name="senha"
+                   minlength="8" autocomplete="new-password" required>
+        </div>
+
+        <div>
+            <label for="novo_veiculo">Veículo</label>
+            <select id="novo_veiculo" name="veiculo_id" required>
+                <option value="">Selecione</option>
+                {% for v in veiculos %}
+                    {% if v.ativo %}
+                    <option value="{{ v.id }}">{{ v.nome }}</option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label for="novo_inicio">Início do turno</label>
+            <input id="novo_inicio" type="time"
+                   name="hora_inicio" required>
+        </div>
+
+        <div>
+            <label for="novo_fim">Fim do turno</label>
+            <input id="novo_fim" type="time"
+                   name="hora_fim" required>
+        </div>
+
+        <div>
+            <button class="admin-botao" type="submit">
+                Cadastrar motorista
+            </button>
+        </div>
+    </form>
+
+    <p class="admin-nota">
+        A senha inicial deve ser entregue ao motorista em particular.
+        O sistema armazena somente sua versão protegida.
+    </p>
+<section class="admin-card" style="margin: 24px 0;">
+    <h2>Editar motoristas</h2>
+
+    <p class="admin-nota">
+        Altere o nome ou o usuário de acesso sem apagar o histórico.
+    </p>
+
+    <div class="admin-tabela">
+        <table>
+            <thead>
+                <tr>
+                    <th>Nome do motorista</th>
+                    <th>Usuário de acesso</th>
+                    <th>Status</th>
+                    <th>Ação</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in motoristas %}
+                <tr>
+                    <td colspan="4">
+                        <div class="admin-acoes" style="align-items:center; min-width:650px;">
+                            <form method="post"
+                                  action="{{ url_for('editar_motorista') }}"
+                                  style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="motorista_id" value="{{ m.id }}">
+                                <input type="text" name="nome" value="{{ m.nome }}"
+                                       minlength="2" maxlength="100" required
+                                       aria-label="Nome de {{ m.nome }}">
+                                <input type="text" name="usuario" value="{{ m.usuario or '' }}"
+                                       minlength="3" maxlength="30"
+                                       pattern="[a-z0-9._-]+" required
+                                       aria-label="Usuário de {{ m.nome }}">
+                                <span>{% if m.ativo %}Ativo{% else %}Inativo{% endif %}</span>
+                                <button class="admin-botao" type="submit">Salvar alterações</button>
+                            </form>
+                            {% if m.ativo %}
+                            <form method="post"
+                                  action="{{ url_for('desativar_motorista') }}"
+                                  onsubmit="return confirm('Deseja desativar este motorista? O histórico será preservado.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="motorista_id" value="{{ m.id }}">
+                                <button class="admin-botao" type="submit">Desativar</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+ <h2>Gerenciar escala dos motoristas</h2>
+        <p class="admin-nota">
+            Altere o veículo e o turno conforme a escala atual da empresa.
+            As jornadas já registradas não serão modificadas.
+        </p>
+
+        <div class="admin-tabela">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Motorista</th>
+                        <th>Veículo atual</th>
+                        <th>Novo veículo</th>
+                        <th>Início do turno</th>
+                        <th>Fim do turno</th>
+                        <th>Ação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in escalas %}
+                    <tr>
+                        <td>{{ e.motorista }}</td>
+                        <td>{{ e.veiculo }}</td>
+                        <td colspan="3">
+                            <form method="post"
+                                  action="{{ url_for('editar_escala') }}"
+                                  class="admin-acoes"
+                                  style="align-items:center; min-width:650px;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="escala_id"
+                                       value="{{ e.id }}">
+
+                                <select name="veiculo_id" required
+                                        aria-label="Novo veículo para {{ e.motorista }}"
+                                        style="padding:9px; border:1px solid #bbb; border-radius:6px;">
+                                    {% for v in veiculos %}
+                                    <option value="{{ v.id }}"
+                                        {% if v.id == e.veiculo_id %}selected{% endif %}>
+                                        {{ v.nome }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+
+                                <input type="time" name="hora_inicio"
+                                       value="{{ e.hora_inicio }}" required
+                                       aria-label="Início do turno de {{ e.motorista }}"
+                                       style="padding:9px; border:1px solid #bbb; border-radius:6px;">
+
+                                <input type="time" name="hora_fim"
+                                       value="{{ e.hora_fim }}" required
+                                       aria-label="Fim do turno de {{ e.motorista }}"
+                                       style="padding:9px; border:1px solid #bbb; border-radius:6px;">
+
+                                <button class="admin-botao" type="submit">
+                                    Salvar
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6">Nenhuma escala ativa encontrada.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+
+    <section class="admin-secao">
+        <h2>Registro de avarias</h2>
+        <p class="admin-nota">
+            Histórico de avarias informadas durante as jornadas.
+            O registro documenta a ocorrência e não determina, por si só,
+            a responsabilidade pelo dano.
+        </p>
+
+        <div class="admin-tabela">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data da jornada</th>
+                        <th>Motorista</th>
+                        <th>Veículo</th>
+                        <th>Descrição da avaria</th>
+                        <th>Foto</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in avarias %}
+                    <tr>
+                        <td>{{ a.data_inicio }}</td>
+                        <td>{{ a.motorista }}</td>
+                        <td>
+                            {{ a.veiculo }}
+                            {% if a.placa %}<br>{{ a.placa }}{% endif %}
+                        </td>
+                        <td>{{ a.descricao_avarias or 'Foto registrada sem descrição' }}</td>
+                        <td>
+                            {% if a.foto_avaria %}
+                            <a href="{{ url_for('foto_jornada', nome_arquivo=a.foto_avaria) }}"
+                               target="_blank" rel="noopener">
+                                Visualizar foto
+                            </a>
+                            {% else %}
+                            Sem foto
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5">Nenhuma avaria registrada até o momento.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+
+    <section class="admin-secao">
+        <h2>Avarias identificadas durante a jornada</h2>
+        <p class="admin-nota">
+            Registros informados pelo motorista no encerramento da jornada.
+        </p>
+
+        <div class="admin-tabela">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data da jornada</th>
+                        <th>Motorista</th>
+                        <th>Veículo</th>
+                        <th>Descrição da avaria</th>
+                        <th>Foto</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in avarias_jornada %}
+                    <tr>
+                        <td>{{ a.data_inicio }}</td>
+                        <td>{{ a.motorista }}</td>
+                        <td>
+                            {{ a.veiculo }}
+                            {% if a.placa %}<br>{{ a.placa }}{% endif %}
+                        </td>
+                        <td>{{ a.descricao_avaria or 'Foto registrada sem descrição' }}</td>
+                        <td>
+                            {% if a.foto_avaria %}
+                            <a href="{{ url_for('foto_jornada', nome_arquivo=a.foto_avaria) }}"
+                               target="_blank" rel="noopener">
+                                Visualizar foto
+                            </a>
+                            {% else %}
+                            Sem foto
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5">Nenhuma avaria identificada durante a jornada.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    </main>
+</body>
+</html>
