@@ -497,6 +497,29 @@ def painel_admin():
             "uber_pix": j["uber_pix"],
             "noventa_nove_pix": j["noventa_nove_pix"],
             "particulares_pix": j["particulares_pix"],
+            "uber_presumido": (
+                (j["uber_total"] or 0)
+                - (j["uber_dinheiro"] or 0)
+                - j["uber_pix"]
+                if j["uber_pix"] is not None else None
+            ),
+            "noventa_nove_presumido": (
+                (j["noventa_nove_total"] or 0)
+                - (j["noventa_nove_dinheiro"] or 0)
+                - j["noventa_nove_pix"]
+                if j["noventa_nove_pix"] is not None else None
+            ),
+            "total_presumido": (
+                (j["uber_total"] or 0)
+                + (j["noventa_nove_total"] or 0)
+                - (j["uber_dinheiro"] or 0)
+                - (j["noventa_nove_dinheiro"] or 0)
+                - j["uber_pix"]
+                - j["noventa_nove_pix"]
+                if j["uber_pix"] is not None
+                and j["noventa_nove_pix"] is not None
+                else None
+            ),
             "pix_empresa": j["pix_empresa"] or 0,
             "distancia": distancia,
             "faturamento": faturamento,
@@ -730,6 +753,7 @@ def exportar_relatorio_excel():
         "Corridas particulares", "Dinheiro particular",
         "Dinheiro total", "PIX Uber", "PIX 99",
         "PIX particulares", "PIX empresa",
+        "Uber presumido", "99 presumido", "Total presumido",
         "Faturamento bruto", "Despesas",
         "R$/km", "Foto KM inicial", "Foto KM final"
     ])
@@ -775,6 +799,26 @@ def exportar_relatorio_excel():
             j["particulares"], j["particulares_dinheiro"],
             dinheiro, j["uber_pix"], j["noventa_nove_pix"],
             j["particulares_pix"], j["pix_empresa"],
+            (
+                (j["uber"] or 0) - (j["uber_dinheiro"] or 0)
+                - j["uber_pix"]
+                if j["uber_pix"] is not None else None
+            ),
+            (
+                (j["noventa_nove"] or 0)
+                - (j["noventa_nove_dinheiro"] or 0)
+                - j["noventa_nove_pix"]
+                if j["noventa_nove_pix"] is not None else None
+            ),
+            (
+                (j["uber"] or 0) + (j["noventa_nove"] or 0)
+                - (j["uber_dinheiro"] or 0)
+                - (j["noventa_nove_dinheiro"] or 0)
+                - j["uber_pix"] - j["noventa_nove_pix"]
+                if j["uber_pix"] is not None
+                and j["noventa_nove_pix"] is not None
+                else None
+            ),
             faturamento, j["despesas"], por_km,
             foto_inicial, foto_final
         ])
@@ -785,7 +829,8 @@ def exportar_relatorio_excel():
         "Uber", "Dinheiro Uber", "99", "Dinheiro 99",
         "Corridas particulares", "Dinheiro particular",
         "Dinheiro total", "PIX Uber", "PIX 99",
-        "PIX particulares", "PIX empresa"
+        "PIX particulares", "PIX empresa",
+        "Uber presumido", "99 presumido", "Total presumido"
     ])
 
     for g in ganhos:
@@ -796,7 +841,27 @@ def exportar_relatorio_excel():
             g["corridas_particulares"], g["particulares_dinheiro"],
             g["dinheiro_total"], g["uber_pix"],
             g["noventa_nove_pix"], g["particulares_pix"],
-            g["pix_empresa"]
+            g["pix_empresa"],
+            (
+                (g["uber_total"] or 0) - (g["uber_dinheiro"] or 0)
+                - g["uber_pix"]
+                if g["uber_pix"] is not None else None
+            ),
+            (
+                (g["noventa_nove_total"] or 0)
+                - (g["noventa_nove_dinheiro"] or 0)
+                - g["noventa_nove_pix"]
+                if g["noventa_nove_pix"] is not None else None
+            ),
+            (
+                (g["uber_total"] or 0) + (g["noventa_nove_total"] or 0)
+                - (g["uber_dinheiro"] or 0)
+                - (g["noventa_nove_dinheiro"] or 0)
+                - g["uber_pix"] - g["noventa_nove_pix"]
+                if g["uber_pix"] is not None
+                and g["noventa_nove_pix"] is not None
+                else None
+            )
         ])
 
     aba = wb.create_sheet("Despesas")
@@ -921,6 +986,24 @@ def exportar_relatorio_excel():
 
         # Corridas particulares: quantidade inteira
         linha[8].number_format = "0"
+
+    # Formatação financeira por nome do cabeçalho
+    for nome_aba in ("Jornadas", "Ganhos"):
+        planilha = wb[nome_aba]
+        for cabecalho in planilha[1]:
+            if cabecalho.value in (
+                "Uber presumido", "99 presumido", "Total presumido",
+                "Faturamento bruto", "Despesas", "R$/km",
+                "PIX Uber", "PIX 99", "PIX particulares", "PIX empresa"
+            ):
+                for coluna in planilha.iter_cols(
+                    min_col=cabecalho.column,
+                    max_col=cabecalho.column,
+                    min_row=2
+                ):
+                    for celula in coluna:
+                        if isinstance(celula.value, (int, float)):
+                            celula.number_format = '"R$" #,##0.00'
 
     # Mantém a formatação numérica da aba Despesas
         # Formatação específica da aba Despesas

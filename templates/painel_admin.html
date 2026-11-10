@@ -154,6 +154,9 @@
                         <th>Corridas particulares</th>
                         <th>PIX Uber</th>
                         <th>PIX 99</th>
+                        <th>Uber presumido</th>
+                        <th>99 presumido</th>
+                        <th>Total presumido</th>
                         <th>PIX particulares</th>
                         <th>Faturamento bruto</th>
                         <th>PIX repassado à empresa</th>
@@ -182,6 +185,9 @@
                         <td class="numero">R$ {{ "%.2f"|format(j.corridas_particulares) }}</td>
                         <td class="numero">{% if j.uber_pix is not none %}R$ {{ "%.2f"|format(j.uber_pix) }}{% else %}—{% endif %}</td>
                         <td class="numero">{% if j.noventa_nove_pix is not none %}R$ {{ "%.2f"|format(j.noventa_nove_pix) }}{% else %}—{% endif %}</td>
+                        <td class="numero">{% if j.uber_presumido is not none %}R$ {{ "%.2f"|format(j.uber_presumido) }}{% else %}—{% endif %}</td>
+                        <td class="numero">{% if j.noventa_nove_presumido is not none %}R$ {{ "%.2f"|format(j.noventa_nove_presumido) }}{% else %}—{% endif %}</td>
+                        <td class="numero">{% if j.total_presumido is not none %}R$ {{ "%.2f"|format(j.total_presumido) }}{% else %}—{% endif %}</td>
                         <td class="numero">{% if j.particulares_pix is not none %}R$ {{ "%.2f"|format(j.particulares_pix) }}{% else %}—{% endif %}</td>
                         <td class="numero">R$ {{ "%.2f"|format(j.faturamento) }}</td>
                         <td class="numero">R$ {{ "%.2f"|format(j.pix_empresa) }}</td>
