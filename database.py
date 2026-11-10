@@ -143,6 +143,18 @@ def inicializar_banco():
             for linha in db.execute("PRAGMA table_info(checklists)")
         }
 
+        # Campos financeiros adicionais.
+        for campo in (
+            "particulares_dinheiro",
+            "uber_pix",
+            "noventa_nove_pix",
+            "particulares_pix",
+        ):
+            if campo not in colunas_ganhos:
+                db.execute(
+                    f"ALTER TABLE ganhos ADD COLUMN {campo} REAL"
+                )
+
         if "pix_empresa" not in colunas_ganhos:
             db.execute("""
                 ALTER TABLE ganhos

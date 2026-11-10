@@ -149,8 +149,12 @@
                         <th>99</th>
                         <th>Dinheiro Uber</th>
                         <th>Dinheiro 99</th>
+                        <th>Dinheiro particular</th>
                         <th>Dinheiro total recebido</th>
                         <th>Corridas particulares</th>
+                        <th>PIX Uber</th>
+                        <th>PIX 99</th>
+                        <th>PIX particulares</th>
                         <th>Faturamento bruto</th>
                         <th>PIX repassado à empresa</th>
                         <th>Despesas</th>
@@ -173,8 +177,12 @@
                         <td class="numero">R$ {{ "%.2f"|format(j.noventa_nove) }}</td>
                         <td class="numero">R$ {{ "%.2f"|format(j.uber_dinheiro) }}</td>
                         <td class="numero">R$ {{ "%.2f"|format(j.noventa_nove_dinheiro) }}</td>
+                        <td class="numero">{% if j.particulares_dinheiro is not none %}R$ {{ "%.2f"|format(j.particulares_dinheiro) }}{% else %}—{% endif %}</td>
                         <td class="numero">R$ {{ "%.2f"|format(j.dinheiro_total) }}</td>
                         <td class="numero">R$ {{ "%.2f"|format(j.corridas_particulares) }}</td>
+                        <td class="numero">{% if j.uber_pix is not none %}R$ {{ "%.2f"|format(j.uber_pix) }}{% else %}—{% endif %}</td>
+                        <td class="numero">{% if j.noventa_nove_pix is not none %}R$ {{ "%.2f"|format(j.noventa_nove_pix) }}{% else %}—{% endif %}</td>
+                        <td class="numero">{% if j.particulares_pix is not none %}R$ {{ "%.2f"|format(j.particulares_pix) }}{% else %}—{% endif %}</td>
                         <td class="numero">R$ {{ "%.2f"|format(j.faturamento) }}</td>
                         <td class="numero">R$ {{ "%.2f"|format(j.pix_empresa) }}</td>
                         <td class="numero">R$ {{ "%.2f"|format(j.despesas) }}</td>
@@ -202,7 +210,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="19">Nenhuma jornada encontrada com os filtros selecionados.</td>
+                        <td colspan="23">Nenhuma jornada encontrada com os filtros selecionados.</td>
                     </tr>
                     {% endfor %}
                 </tbody>

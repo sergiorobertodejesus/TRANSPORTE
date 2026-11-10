@@ -414,6 +414,10 @@ def painel_admin():
                   COALESCE(g.uber_dinheiro, 0) AS uber_dinheiro,
                   COALESCE(g.noventa_nove_dinheiro, 0) AS noventa_nove_dinheiro,
                   COALESCE(g.corridas_particulares, 0) AS corridas_particulares,
+                  g.particulares_dinheiro AS particulares_dinheiro,
+                  g.uber_pix AS uber_pix,
+                  g.noventa_nove_pix AS noventa_nove_pix,
+                  g.particulares_pix AS particulares_pix,
                   COALESCE(g.pix_empresa, 0) AS pix_empresa,
                   COALESCE(d.total_despesas, 0) AS total_despesas
             FROM jornadas j
@@ -427,6 +431,10 @@ def painel_admin():
                       SUM(uber_dinheiro) AS uber_dinheiro,
                       SUM(noventa_nove_dinheiro) AS noventa_nove_dinheiro,
                       SUM(corridas_particulares) AS corridas_particulares,
+                      SUM(particulares_dinheiro) AS particulares_dinheiro,
+                      SUM(uber_pix) AS uber_pix,
+                      SUM(noventa_nove_pix) AS noventa_nove_pix,
+                      SUM(particulares_pix) AS particulares_pix,
                       SUM(pix_empresa) AS pix_empresa
                   FROM ganhos
                   GROUP BY jornada_id
@@ -450,6 +458,7 @@ def painel_admin():
         faturamento = (
             (j["uber_total"] or 0)
             + (j["noventa_nove_total"] or 0)
+            + (j["corridas_particulares"] or 0)
         )
         despesas = j["total_despesas"] or 0
 
@@ -482,7 +491,12 @@ def painel_admin():
             "dinheiro_total": (
                 (j["uber_dinheiro"] or 0)
                 + (j["noventa_nove_dinheiro"] or 0)
+                + (j["particulares_dinheiro"] or 0)
             ),
+            "particulares_dinheiro": j["particulares_dinheiro"],
+            "uber_pix": j["uber_pix"],
+            "noventa_nove_pix": j["noventa_nove_pix"],
+            "particulares_pix": j["particulares_pix"],
             "pix_empresa": j["pix_empresa"] or 0,
             "distancia": distancia,
             "faturamento": faturamento,
@@ -572,6 +586,10 @@ def exportar_relatorio_excel():
                 COALESCE(g.uber_dinheiro, 0) AS uber_dinheiro,
                 COALESCE(g.noventa_nove_dinheiro, 0) AS noventa_nove_dinheiro,
                 COALESCE(g.corridas_particulares, 0) AS particulares,
+                g.particulares_dinheiro AS particulares_dinheiro,
+                g.uber_pix AS uber_pix,
+                g.noventa_nove_pix AS noventa_nove_pix,
+                g.particulares_pix AS particulares_pix,
                 COALESCE(g.pix_empresa, 0) AS pix_empresa,
                 COALESCE(d.total_despesas, 0) AS despesas
             FROM jornadas j
@@ -585,6 +603,10 @@ def exportar_relatorio_excel():
                     SUM(uber_dinheiro) AS uber_dinheiro,
                     SUM(noventa_nove_dinheiro) AS noventa_nove_dinheiro,
                     SUM(corridas_particulares) AS corridas_particulares,
+                    SUM(particulares_dinheiro) AS particulares_dinheiro,
+                    SUM(uber_pix) AS uber_pix,
+                    SUM(noventa_nove_pix) AS noventa_nove_pix,
+                    SUM(particulares_pix) AS particulares_pix,
                     SUM(pix_empresa) AS pix_empresa
                 FROM ganhos
                 GROUP BY jornada_id
@@ -609,6 +631,10 @@ def exportar_relatorio_excel():
                 g.noventa_nove_total,
                 g.noventa_nove_dinheiro,
                 g.corridas_particulares,
+                g.particulares_dinheiro,
+                g.uber_pix,
+                g.noventa_nove_pix,
+                g.particulares_pix,
                 g.dinheiro_total,
                 g.pix_empresa
             FROM ganhos g
@@ -676,6 +702,7 @@ def exportar_relatorio_excel():
 
     faturamento_total = sum(
         (j["uber"] or 0) + (j["noventa_nove"] or 0)
+        + (j["particulares"] or 0)
         for j in jornadas
     )
     despesas_total = sum(j["despesas"] or 0 for j in jornadas)
@@ -691,7 +718,7 @@ def exportar_relatorio_excel():
     resumo.append(["Jornadas encontradas", len(jornadas)])
     resumo.append(["Faturamento bruto", faturamento_total])
     resumo.append(["Despesas", despesas_total])
-    resumo.append(["Saldo após despesas", faturamento_total - despesas_total])
+    resumo.append(["Total líquido operacional", faturamento_total - despesas_total])
 
     aba = wb.create_sheet("Jornadas")
     aba.append([
@@ -700,8 +727,10 @@ def exportar_relatorio_excel():
         "KM inicial", "KM final", "KM rodados",
         "Bateria inicial", "Bateria final",
         "Uber", "99", "Dinheiro Uber", "Dinheiro 99",
-        "Corridas particulares", "Dinheiro total",
-        "PIX empresa", "Faturamento bruto", "Despesas",
+        "Corridas particulares", "Dinheiro particular",
+        "Dinheiro total", "PIX Uber", "PIX 99",
+        "PIX particulares", "PIX empresa",
+        "Faturamento bruto", "Despesas",
         "R$/km", "Foto KM inicial", "Foto KM final"
     ])
 
@@ -710,8 +739,16 @@ def exportar_relatorio_excel():
         if j["km_inicial"] is not None and j["km_final"] is not None:
             distancia = j["km_final"] - j["km_inicial"]
 
-        faturamento = (j["uber"] or 0) + (j["noventa_nove"] or 0)
-        dinheiro = (j["uber_dinheiro"] or 0) + (j["noventa_nove_dinheiro"] or 0)
+        faturamento = (
+            (j["uber"] or 0)
+            + (j["noventa_nove"] or 0)
+            + (j["particulares"] or 0)
+        )
+        dinheiro = (
+            (j["uber_dinheiro"] or 0)
+            + (j["noventa_nove_dinheiro"] or 0)
+            + (j["particulares_dinheiro"] or 0)
+        )
         por_km = faturamento / distancia if distancia and distancia > 0 else None
 
         # Converte as datas para o formato reconhecido pelo Excel
@@ -735,7 +772,9 @@ def exportar_relatorio_excel():
             j["bateria_inicial"], j["bateria_final"],
             j["uber"], j["noventa_nove"],
             j["uber_dinheiro"], j["noventa_nove_dinheiro"],
-            j["particulares"], dinheiro, j["pix_empresa"],
+            j["particulares"], j["particulares_dinheiro"],
+            dinheiro, j["uber_pix"], j["noventa_nove_pix"],
+            j["particulares_pix"], j["pix_empresa"],
             faturamento, j["despesas"], por_km,
             foto_inicial, foto_final
         ])
@@ -744,7 +783,9 @@ def exportar_relatorio_excel():
     aba.append([
         "ID lançamento", "Jornada", "Motorista", "Veículo",
         "Uber", "Dinheiro Uber", "99", "Dinheiro 99",
-        "Corridas particulares", "Dinheiro total", "PIX empresa"
+        "Corridas particulares", "Dinheiro particular",
+        "Dinheiro total", "PIX Uber", "PIX 99",
+        "PIX particulares", "PIX empresa"
     ])
 
     for g in ganhos:
@@ -752,7 +793,9 @@ def exportar_relatorio_excel():
             g["id"], g["jornada_id"], g["motorista"], g["veiculo"],
             g["uber_total"], g["uber_dinheiro"],
             g["noventa_nove_total"], g["noventa_nove_dinheiro"],
-            g["corridas_particulares"], g["dinheiro_total"],
+            g["corridas_particulares"], g["particulares_dinheiro"],
+            g["dinheiro_total"], g["uber_pix"],
+            g["noventa_nove_pix"], g["particulares_pix"],
             g["pix_empresa"]
         ])
 
@@ -1359,7 +1402,14 @@ def jornada():
             noventa_nove_total = ler_valor("99_total")
             noventa_nove_dinheiro = ler_valor("99_dinheiro")
             corridas_particulares = ler_valor("corridas_particulares")
-            dinheiro_total = uber_dinheiro + noventa_nove_dinheiro
+            particulares_dinheiro = ler_valor("particulares_dinheiro")
+            uber_pix = ler_valor("uber_pix")
+            noventa_nove_pix = ler_valor("99_pix")
+            particulares_pix = ler_valor("particulares_pix")
+            dinheiro_total = (
+                uber_dinheiro + noventa_nove_dinheiro
+                + particulares_dinheiro
+            )
             pix_empresa = ler_valor("pix_empresa")
             recarga = ler_valor("recarga")
             combustivel = ler_valor("combustivel")
@@ -1435,12 +1485,16 @@ def jornada():
                 INSERT INTO ganhos (
                     jornada_id, uber_total, uber_dinheiro,
                     noventa_nove_total, noventa_nove_dinheiro,
-                    corridas_particulares, dinheiro_total, pix_empresa
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    corridas_particulares, dinheiro_total, pix_empresa,
+                    particulares_dinheiro, uber_pix,
+                    noventa_nove_pix, particulares_pix
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 jornada_id, uber_total, uber_dinheiro,
                 noventa_nove_total, noventa_nove_dinheiro,
-                corridas_particulares, dinheiro_total, pix_empresa
+                corridas_particulares, dinheiro_total, pix_empresa,
+                particulares_dinheiro, uber_pix,
+                noventa_nove_pix, particulares_pix
             ))
 
             despesas = [
