@@ -52,6 +52,35 @@ h1 { color:#153b50; }
 <div class="grade">
 
 <div class="campo">
+<label for="veiculo_id">Veículo utilizado</label>
+<select id="veiculo_id" name="veiculo_id" required>
+{% for veiculo in veiculos %}
+{% if veiculo.ativo or veiculo.id == jornada.veiculo_id %}
+<option value="{{ veiculo.id }}"
+    {% if veiculo.id == jornada.veiculo_id %}selected{% endif %}>
+    {{ veiculo.nome }}
+    {% if veiculo.placa %} — {{ veiculo.placa }}{% endif %}
+</option>
+{% endif %}
+{% endfor %}
+</select>
+</div>
+
+<div class="campo">
+<label for="data_inicio">Data e hora de início</label>
+<input id="data_inicio" name="data_inicio"
+       type="datetime-local" required
+       value="{{ jornada.data_inicio[:16] }}">
+</div>
+
+<div class="campo">
+<label for="data_fim">Data e hora de encerramento</label>
+<input id="data_fim" name="data_fim"
+       type="datetime-local" required
+       value="{{ jornada.data_fim[:16] }}">
+</div>
+
+<div class="campo">
 <label for="km_inicial">KM inicial</label>
 <input id="km_inicial" name="km_inicial" type="number" min="0"
        step="1"

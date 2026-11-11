@@ -605,6 +605,9 @@ def editar_jornada_admin(jornada_id):
         """, (jornada_id,)).fetchall()
 
         nomes_campos = {
+            "veiculo_id": "Veículo",
+            "data_inicio": "Início da jornada",
+            "data_fim": "Encerramento da jornada",
             "km_inicial": "KM inicial",
             "km_final": "KM final",
             "uber_total": "Uber total",
@@ -628,7 +631,12 @@ def editar_jornada_admin(jornada_id):
 
             alteracoes = []
 
-            for grupo in ("km", "ganhos"):
+            nomes_veiculos = {
+                v["id"]: v["nome"]
+                for v in db.execute("SELECT id, nome FROM veiculos")
+            }
+
+            for grupo in ("jornada", "km", "ganhos"):
                 antigos = anteriores.get(grupo, {})
                 atuais = novos.get(grupo, {})
 
@@ -637,6 +645,14 @@ def editar_jornada_admin(jornada_id):
                     atual = atuais.get(campo)
 
                     if anterior != atual:
+                        if grupo == "jornada" and campo == "veiculo_id":
+                            anterior = nomes_veiculos.get(
+                                anterior, f"Veículo #{anterior}"
+                            )
+                            atual = nomes_veiculos.get(
+                                atual, f"Veículo #{atual}"
+                            )
+
                         alteracoes.append({
                             "campo": nomes_campos.get(campo, campo),
                             "anterior": anterior,
@@ -679,11 +695,18 @@ def editar_jornada_admin(jornada_id):
                 "alteracoes": alteracoes
             })
 
+        veiculos = db.execute("""
+            SELECT id, nome, placa, ativo
+            FROM veiculos
+            ORDER BY nome
+        """).fetchall()
+
         return render_template(
             "editar_jornada.html",
             jornada=registro,
             despesas=valores_despesas,
-            historico_auditoria=historico_auditoria
+            historico_auditoria=historico_auditoria,
+            veiculos=veiculos
         )
     finally:
         db.close()
@@ -718,6 +741,35 @@ def salvar_correcao_jornada(jornada_id):
     }
 
     motivo = request.form.get("motivo", "").strip()
+
+    try:
+        veiculo_id_novo = int(request.form.get("veiculo_id", ""))
+        if veiculo_id_novo <= 0:
+            raise ValueError
+
+        inicio_informado = datetime.strptime(
+            request.form.get("data_inicio", ""),
+            "%Y-%m-%dT%H:%M"
+        )
+        fim_informado = datetime.strptime(
+            request.form.get("data_fim", ""),
+            "%Y-%m-%dT%H:%M"
+        )
+
+        if fim_informado < inicio_informado:
+            raise ValueError(
+                "O encerramento não pode ser anterior ao início."
+            )
+
+    except (ValueError, TypeError) as erro:
+        flash(
+            str(erro) if str(erro) else
+            "Confira o veículo e as datas informadas.",
+            "erro"
+        )
+        return redirect(
+            url_for("editar_jornada_admin", jornada_id=jornada_id)
+        )
     if len(motivo) < 5 or len(motivo) > 1000:
         flash("Informe um motivo entre 5 e 1000 caracteres.", "erro")
         return redirect(url_for("editar_jornada_admin", jornada_id=jornada_id))
@@ -815,6 +867,42 @@ def salvar_correcao_jornada(jornada_id):
             db.rollback()
             abort(404)
 
+        veiculo_novo = db.execute("""
+            SELECT id, nome, ativo FROM veiculos WHERE id = ?
+        """, (veiculo_id_novo,)).fetchone()
+
+        if veiculo_novo is None or (
+            not veiculo_novo["ativo"]
+            and veiculo_id_novo != jornada["veiculo_id"]
+        ):
+            raise ValueError(
+                "Selecione um veículo cadastrado e ativo."
+            )
+
+        inicio_original = datetime.fromisoformat(
+            jornada["data_inicio"]
+        )
+        fim_original = datetime.fromisoformat(
+            jornada["data_fim"]
+        )
+
+        def preservar_precisao(informado, original):
+            if informado == original.replace(
+                tzinfo=None, second=0, microsecond=0
+            ):
+                return original.isoformat(timespec="seconds")
+
+            return informado.replace(
+                tzinfo=original.tzinfo
+            ).isoformat(timespec="seconds")
+
+        data_inicio_nova = preservar_precisao(
+            inicio_informado, inicio_original
+        )
+        data_fim_nova = preservar_precisao(
+            fim_informado, fim_original
+        )
+
         ganhos = db.execute("""
             SELECT * FROM ganhos WHERE jornada_id = ?
         """, (jornada_id,)).fetchone()
@@ -831,6 +919,11 @@ def salvar_correcao_jornada(jornada_id):
         """, (jornada_id,)).fetchall()
 
         anteriores = {
+            "jornada": {
+                "veiculo_id": jornada["veiculo_id"],
+                "data_inicio": jornada["data_inicio"],
+                "data_fim": jornada["data_fim"]
+            },
             "km": {c: jornada[c] for c in campos_km},
             "ganhos": {c: ganhos[c] for c in campos_ganhos},
             "despesas": [dict(r) for r in despesas_atuais]
@@ -862,7 +955,10 @@ def salvar_correcao_jornada(jornada_id):
         anteriores["ganhos"]["dinheiro_total"] = ganhos["dinheiro_total"]
 
         mudou = (
-            any(jornada[c] != novos_km[c] for c in campos_km)
+            jornada["veiculo_id"] != veiculo_id_novo
+            or jornada["data_inicio"] != data_inicio_nova
+            or jornada["data_fim"] != data_fim_nova
+            or any(jornada[c] != novos_km[c] for c in campos_km)
             or any(ganhos[c] != novos_ganhos[c] for c in campos_ganhos)
             or ganhos["dinheiro_total"] != novos_ganhos_completos["dinheiro_total"]
             or any(
@@ -879,9 +975,21 @@ def salvar_correcao_jornada(jornada_id):
             return redirect(url_for("editar_jornada_admin", jornada_id=jornada_id))
 
         db.execute("""
-            UPDATE jornadas SET km_inicial = ?, km_final = ?
+            UPDATE jornadas
+            SET veiculo_id = ?,
+                data_inicio = ?,
+                data_fim = ?,
+                km_inicial = ?,
+                km_final = ?
             WHERE id = ?
-        """, (novos_km["km_inicial"], novos_km["km_final"], jornada_id))
+        """, (
+            veiculo_id_novo,
+            data_inicio_nova,
+            data_fim_nova,
+            novos_km["km_inicial"],
+            novos_km["km_final"],
+            jornada_id
+        ))
 
         campos_atualizados = list(campos_ganhos) + ["dinheiro_total"]
         atribuicoes = ", ".join(c + " = ?" for c in campos_atualizados)
@@ -911,6 +1019,11 @@ def salvar_correcao_jornada(jornada_id):
         """, (jornada_id,)).fetchall()
 
         novos = {
+            "jornada": {
+                "veiculo_id": veiculo_id_novo,
+                "data_inicio": data_inicio_nova,
+                "data_fim": data_fim_nova
+            },
             "km": novos_km,
             "ganhos": novos_ganhos_completos,
             "despesas": [dict(r) for r in despesas_finais]
