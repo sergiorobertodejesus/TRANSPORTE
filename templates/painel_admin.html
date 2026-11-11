@@ -59,6 +59,12 @@
             <article class="admin-card">
                 <h3>Faturamento bruto — consulta</h3>
                 <div class="admin-numero">R$ {{ "%.2f"|format(faturamento_total) }}</div>
+                {% if jornadas_inconsistentes %}
+                <p style="font-size:12px; color:#a32626; margin:8px 0 0;">
+                    ⚠ {{ jornadas_inconsistentes }}
+                    jornada(s) com valores particulares a conferir
+                </p>
+                {% endif %}
             </article>
             <article class="admin-card">
                 <h3>Despesas — consulta</h3>
@@ -138,6 +144,7 @@
             <table>
                 <thead>
                     <tr>
+                        <th>Ações</th>
                         <th>ID</th>
                         <th>Motorista</th>
                         <th>Veículo / Placa</th>
@@ -169,6 +176,14 @@
                 <tbody>
                     {% for j in jornadas %}
                     <tr>
+                        <td>
+                            {% if j.status == 'ENCERRADA' %}
+                            <a class="admin-botao"
+                               href="{{ url_for('editar_jornada_admin', jornada_id=j.id) }}">
+                                Editar
+                            </a>
+                            {% else %}—{% endif %}
+                        </td>
                         <td>{{ j.id }}</td>
                         <td>{{ j.motorista }}</td>
                         <td>{{ j.veiculo }}{% if j.placa %} — {{ j.placa }}{% endif %}</td>

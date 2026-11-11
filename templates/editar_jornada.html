@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Editar jornada - ER Transporte</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+body { background:#f3f5f6; }
+.edicao { max-width:850px; margin:25px auto; padding:20px; }
+.cartao { background:white; padding:22px; border-radius:10px;
+          box-shadow:0 2px 8px #0001; }
+.grade { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+         gap:15px; }
+.campo label { display:block; margin-bottom:6px; font-weight:bold; }
+.campo input, textarea { width:100%; box-sizing:border-box; padding:10px;
+                         border:1px solid #bbb; border-radius:6px; }
+h1 { color:#153b50; }
+.botao { display:inline-block; padding:11px 16px; background:#153b50;
+         color:white; border:0; border-radius:6px; text-decoration:none; }
+</style>
+</head>
+<body>
+<main class="edicao">
+<div class="cartao">
+<h1>Editar jornada #{{ jornada.id }}</h1>
+<p><strong>Motorista:</strong> {{ jornada.motorista }}</p>
+<p><strong>Veículo:</strong> {{ jornada.veiculo }}</p>
+<p>Confira os valores antes de realizar uma correção.</p>
+
+
+{% with mensagens = get_flashed_messages() %}
+{% if mensagens %}
+<div role="alert" style="
+    background:#fff3cd;
+    color:#664d03;
+    border:1px solid #ffecb5;
+    padding:12px;
+    border-radius:6px;
+    margin:15px 0;
+">
+    {% for mensagem in mensagens %}
+    <p style="margin:5px 0;">{{ mensagem }}</p>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<form method="POST"
+      action="{{ url_for('salvar_correcao_jornada', jornada_id=jornada.id) }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<div class="grade">
+
+<div class="campo">
+<label for="km_inicial">KM inicial</label>
+<input id="km_inicial" name="km_inicial" type="number" min="0"
+       step="1"
+       value="{{ jornada.km_inicial if jornada.km_inicial is not none else '' }}">
+</div>
+
+<div class="campo">
+<label for="km_final">KM final</label>
+<input id="km_final" name="km_final" type="number" min="0"
+       step="1"
+       value="{{ jornada.km_final if jornada.km_final is not none else '' }}">
+</div>
+
+<div class="campo">
+<label for="uber_total">Uber total</label>
+<input id="uber_total" name="uber_total" type="number" min="0"
+       step="0.01"
+       value="{{ jornada.uber_total if jornada.uber_total is not none else '' }}">
+</div>
+
+<div class="campo">
+<label for="uber_dinheiro">Uber em dinheiro</label>
+<input id="uber_dinheiro" name="uber_dinheiro" type="number" min="0"
+       step="0.01"
+       value="{{ jornada.uber_dinheiro if jornada.uber_dinheiro is not none else '' }}">
+</div>
+
+<div class="campo">
+<label for="uber_pix">Uber em PIX</label>
+<input id="uber_pix" name="uber_pix" type="number" min="0"
+       step="0.01"
+       value="{{ jornada.uber_pix if jornada.uber_pix is not none else '' }}">
+</div>
+
+<div class="campo">
+<label for="noventa_nove_total">99 total</label>
+<input id="noventa_nove_total" name="noventa_nove_total" type="number" min="0"
+       step="0.01"
+       value="{{ jornada.noventa_nove_total if jornada.noventa_nove_total is not none else '' }}">
+</div>
+
+<div class="campo">
+<label for="noventa_nove_dinheiro">99 em dinheiro</label>
+<input id="noventa_nove_dinheiro" name="noventa_nove_dinheiro" type="number" min="0"
+       step="0.01"
+       value="{{ jornada.noventa_nove_dinheiro if jornada.noventa_nove_dinheiro is not none else '' }}">
+</div>
+
+<div class="campo">
+<label for="noventa_nove_pix">99 em PIX</label>
+<input id="noventa_nove_pix" name="noventa_nove_pix" type="number" min="0"
+       step="0.01"
+       value="{{ jornada.noventa_nove_pix if jornada.noventa_nove_pix is not none else '' }}">
+</div>
+
+<div class="campo">
+<label for="corridas_particulares">Corridas particulares</label>
+<input id="corridas_particulares" name="corridas_particulares" type="number" min="0"
+       step="0.01"
+       value="{{ jornada.corridas_particulares if jornada.corridas_particulares is not none else '' }}">
+</div>
+
+<div class="campo">
+<label for="particulares_dinheiro">Particulares em dinheiro</label>
+<input id="particulares_dinheiro" name="particulares_dinheiro" type="number" min="0"
+       step="0.01"
+       value="{{ jornada.particulares_dinheiro if jornada.particulares_dinheiro is not none else '' }}">
+</div>
+
+<div class="campo">
+<label for="particulares_pix">Particulares em PIX</label>
+<input id="particulares_pix" name="particulares_pix" type="number" min="0"
+       step="0.01"
+       value="{{ jornada.particulares_pix if jornada.particulares_pix is not none else '' }}">
+</div>
+
+<div class="campo">
+<label for="pix_empresa">PIX repassado à empresa</label>
+<input id="pix_empresa" name="pix_empresa" type="number" min="0"
+       step="0.01"
+       value="{{ jornada.pix_empresa if jornada.pix_empresa is not none else '' }}">
+</div>
+
+<div class="campo">
+<label for="recarga">Recarga elétrica (R$)</label>
+<input id="recarga" name="recarga" type="number" min="0" step="0.01"
+       value="{{ despesas.get('Recarga elétrica', 0) }}">
+</div>
+
+<div class="campo">
+<label for="combustivel">Combustível (R$)</label>
+<input id="combustivel" name="combustivel" type="number" min="0" step="0.01"
+       value="{{ despesas.get('Combustível', 0) }}">
+</div>
+
+<div class="campo">
+<label for="outras_despesas">Outras despesas (R$)</label>
+<input id="outras_despesas" name="outras_despesas" type="number" min="0" step="0.01"
+       value="{{ despesas.get('Outras despesas', 0) }}">
+</div>
+
+</div>
+<p><label for="motivo"><strong>Motivo da correção</strong></label></p>
+<textarea id="motivo" name="motivo" rows="3"
+          placeholder="Explique o motivo da alteração" required></textarea>
+<p><strong>Atenção:</strong> toda correção será registrada na auditoria.</p>
+<button class="botao" type="submit" name="salvar_correcao" value="1">
+Salvar correção
+</button>
+<a class="botao" href="{{ url_for('painel_admin') }}">Voltar ao painel</a>
+</form>
+</div>
+
+<section class="cartao" style="margin-top:20px;">
+<h2>Histórico de correções</h2>
+
+{% if historico_auditoria %}
+    {% for registro in historico_auditoria %}
+    <div style="border-bottom:1px solid #ddd; padding:14px 0;">
+        <p><strong>Data:</strong> {{ registro.data }}</p>
+        <p><strong>Administrador:</strong> {{ registro.administrador }}</p>
+        <p><strong>Motivo:</strong> {{ registro.motivo }}</p>
+
+        <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse;">
+            <thead>
+                <tr>
+                    <th style="text-align:left;padding:8px;">Campo</th>
+                    <th style="text-align:left;padding:8px;">Anterior</th>
+                    <th style="text-align:left;padding:8px;">Novo</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for alteracao in registro.alteracoes %}
+                <tr>
+                    <td style="padding:8px;border-bottom:1px solid #eee;">
+                        {{ alteracao.campo }}
+                    </td>
+                    <td style="padding:8px;border-bottom:1px solid #eee;">
+                        {{ alteracao.anterior if alteracao.anterior is not none else '—' }}
+                    </td>
+                    <td style="padding:8px;border-bottom:1px solid #eee;">
+                        {{ alteracao.novo if alteracao.novo is not none else '—' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <p>Nenhuma correção registrada para esta jornada.</p>
+{% endif %}
+</section>
+
+</main>
+</body>
+</html>

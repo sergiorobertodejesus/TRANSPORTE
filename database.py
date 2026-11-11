@@ -127,6 +127,20 @@ def inicializar_banco():
             );
         """)
 
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS auditoria_jornadas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                jornada_id INTEGER NOT NULL,
+                administrador_id INTEGER NOT NULL,
+                data_alteracao TEXT NOT NULL,
+                motivo TEXT NOT NULL,
+                dados_anteriores TEXT NOT NULL,
+                dados_novos TEXT NOT NULL,
+                FOREIGN KEY (jornada_id) REFERENCES jornadas(id),
+                FOREIGN KEY (administrador_id) REFERENCES administradores(id)
+            )
+        """)
+
         # Migrações dos campos adicionais.
         colunas_jornadas = {
             linha["name"]

@@ -453,8 +453,18 @@ def painel_admin():
     registros = []
     faturamento_total = 0
     despesas_total = 0
+    jornadas_inconsistentes = 0
 
     for j in jornadas:
+        total_particulares = j["corridas_particulares"] or 0
+        recebido_particulares = (
+            (j["particulares_dinheiro"] or 0)
+            + (j["particulares_pix"] or 0)
+        )
+
+        if recebido_particulares > total_particulares + 0.001:
+            jornadas_inconsistentes += 1
+
         faturamento = (
             (j["uber_total"] or 0)
             + (j["noventa_nove_total"] or 0)
@@ -544,7 +554,395 @@ def painel_admin():
         avarias_jornada=avarias_jornada,
         faturamento_total=faturamento_total,
         despesas_total=despesas_total,
+        jornadas_inconsistentes=jornadas_inconsistentes,
     )
+
+@app.route("/admin/jornada/<int:jornada_id>/editar", methods=["GET"])
+def editar_jornada_admin(jornada_id):
+    if "administrador_id" not in session:
+        return redirect(url_for("login_admin"))
+
+    db = conectar()
+    try:
+        registro = db.execute("""
+            SELECT j.*, m.nome AS motorista, v.nome AS veiculo,
+                   g.uber_total, g.uber_dinheiro,
+                   g.noventa_nove_total, g.noventa_nove_dinheiro,
+                   g.corridas_particulares, g.particulares_dinheiro,
+                   g.uber_pix, g.noventa_nove_pix, g.particulares_pix,
+                   g.pix_empresa
+            FROM jornadas j
+            JOIN motoristas m ON m.id = j.motorista_id
+            JOIN veiculos v ON v.id = j.veiculo_id
+            LEFT JOIN ganhos g ON g.jornada_id = j.id
+            WHERE j.id = ? AND j.status = 'ENCERRADA'
+        """, (jornada_id,)).fetchone()
+
+        if registro is None:
+            abort(404)
+
+        despesas = db.execute("""
+            SELECT categoria, SUM(valor) AS total
+            FROM despesas
+            WHERE jornada_id = ?
+            GROUP BY categoria
+        """, (jornada_id,)).fetchall()
+
+        valores_despesas = {
+            r["categoria"]: r["total"] for r in despesas
+        }
+
+        import json
+
+        registros_auditoria = db.execute("""
+            SELECT a.id, a.data_alteracao, a.motivo,
+                   a.dados_anteriores, a.dados_novos,
+                   adm.usuario AS administrador
+            FROM auditoria_jornadas a
+            JOIN administradores adm ON adm.id = a.administrador_id
+            WHERE a.jornada_id = ?
+            ORDER BY a.id DESC
+        """, (jornada_id,)).fetchall()
+
+        nomes_campos = {
+            "km_inicial": "KM inicial",
+            "km_final": "KM final",
+            "uber_total": "Uber total",
+            "uber_dinheiro": "Uber dinheiro",
+            "uber_pix": "Uber PIX",
+            "noventa_nove_total": "99 total",
+            "noventa_nove_dinheiro": "99 dinheiro",
+            "noventa_nove_pix": "99 PIX",
+            "corridas_particulares": "Corridas particulares",
+            "particulares_dinheiro": "Particulares dinheiro",
+            "particulares_pix": "Particulares PIX",
+            "pix_empresa": "PIX empresa",
+            "dinheiro_total": "Dinheiro total"
+        }
+
+        historico_auditoria = []
+
+        for auditoria in registros_auditoria:
+            anteriores = json.loads(auditoria["dados_anteriores"])
+            novos = json.loads(auditoria["dados_novos"])
+
+            alteracoes = []
+
+            for grupo in ("km", "ganhos"):
+                antigos = anteriores.get(grupo, {})
+                atuais = novos.get(grupo, {})
+
+                for campo in sorted(set(antigos) | set(atuais)):
+                    anterior = antigos.get(campo)
+                    atual = atuais.get(campo)
+
+                    if anterior != atual:
+                        alteracoes.append({
+                            "campo": nomes_campos.get(campo, campo),
+                            "anterior": anterior,
+                            "novo": atual
+                        })
+
+            def somar_despesas(registros):
+                totais = {}
+                for item in registros:
+                    categoria = item["categoria"]
+                    totais[categoria] = (
+                        totais.get(categoria, 0) + item["valor"]
+                    )
+                return totais
+
+            despesas_anteriores = somar_despesas(
+                anteriores.get("despesas", [])
+            )
+            despesas_novas = somar_despesas(
+                novos.get("despesas", [])
+            )
+
+            for categoria in sorted(
+                set(despesas_anteriores) | set(despesas_novas)
+            ):
+                anterior = despesas_anteriores.get(categoria, 0)
+                atual = despesas_novas.get(categoria, 0)
+
+                if round(anterior, 2) != round(atual, 2):
+                    alteracoes.append({
+                        "campo": categoria,
+                        "anterior": anterior,
+                        "novo": atual
+                    })
+
+            historico_auditoria.append({
+                "data": auditoria["data_alteracao"],
+                "administrador": auditoria["administrador"],
+                "motivo": auditoria["motivo"],
+                "alteracoes": alteracoes
+            })
+
+        return render_template(
+            "editar_jornada.html",
+            jornada=registro,
+            despesas=valores_despesas,
+            historico_auditoria=historico_auditoria
+        )
+    finally:
+        db.close()
+
+
+
+@app.route("/admin/jornada/<int:jornada_id>/salvar", methods=["POST"])
+def salvar_correcao_jornada(jornada_id):
+    import json
+    import math
+    import sqlite3
+
+    if "administrador_id" not in session:
+        return redirect(url_for("login_admin"))
+
+    campos_ganhos = (
+        "uber_total", "uber_dinheiro", "uber_pix",
+        "noventa_nove_total", "noventa_nove_dinheiro",
+        "noventa_nove_pix", "corridas_particulares",
+        "particulares_dinheiro", "particulares_pix",
+        "pix_empresa"
+    )
+    campos_km = ("km_inicial", "km_final")
+    categorias = {
+        "recarga": "Recarga elétrica",
+        "combustivel": "Combustível",
+        "outras_despesas": "Outras despesas"
+    }
+    campos_opcionais = {
+        "uber_pix", "noventa_nove_pix",
+        "particulares_dinheiro", "particulares_pix"
+    }
+
+    motivo = request.form.get("motivo", "").strip()
+    if len(motivo) < 5 or len(motivo) > 1000:
+        flash("Informe um motivo entre 5 e 1000 caracteres.", "erro")
+        return redirect(url_for("editar_jornada_admin", jornada_id=jornada_id))
+
+    def numero(campo, inteiro=False, opcional=False):
+        texto = request.form.get(campo)
+        if texto is None:
+            raise ValueError("Campo ausente: " + campo)
+
+        texto = texto.strip().replace(",", ".")
+        if not texto and opcional:
+            return None
+        if not texto:
+            raise ValueError("Preencha o campo: " + campo)
+
+        try:
+            valor = float(texto)
+        except ValueError:
+            raise ValueError("Valor inválido: " + campo)
+
+        if not math.isfinite(valor) or valor < 0:
+            raise ValueError("Valor inválido: " + campo)
+
+        if inteiro:
+            if not valor.is_integer() or valor > 999999999:
+                raise ValueError("Quilometragem inválida: " + campo)
+            return int(valor)
+
+        if valor > 99999999:
+            raise ValueError("Valor financeiro excessivo: " + campo)
+
+        if round(valor, 2) != valor:
+            raise ValueError("Use no máximo duas casas decimais: " + campo)
+
+        return round(valor, 2)
+
+    try:
+        novos_km = {campo: numero(campo, inteiro=True) for campo in campos_km}
+        novos_ganhos = {
+            campo: numero(campo, opcional=campo in campos_opcionais)
+            for campo in campos_ganhos
+        }
+        novas_despesas = {
+            categoria: numero(campo)
+            for campo, categoria in categorias.items()
+        }
+
+        if novos_km["km_final"] < novos_km["km_inicial"]:
+            raise ValueError("KM final não pode ser menor que KM inicial.")
+
+        particulares_recebidos = (
+            (novos_ganhos["particulares_dinheiro"] or 0) +
+            (novos_ganhos["particulares_pix"] or 0)
+        )
+        if particulares_recebidos > novos_ganhos["corridas_particulares"] + 0.001:
+            raise ValueError(
+                "Dinheiro e PIX particulares não podem superar "
+                "o total de corridas particulares."
+            )
+
+        for plataforma, total, dinheiro, pix in (
+            ("Uber", "uber_total", "uber_dinheiro", "uber_pix"),
+            ("99", "noventa_nove_total", "noventa_nove_dinheiro",
+             "noventa_nove_pix"),
+        ):
+            recebido = novos_ganhos[dinheiro] + (novos_ganhos[pix] or 0)
+            if recebido > novos_ganhos[total] + 0.001:
+                raise ValueError(
+                    f"Dinheiro e PIX de {plataforma} superam o total informado."
+                )
+
+    except ValueError as erro:
+        flash(str(erro), "erro")
+        return redirect(url_for("editar_jornada_admin", jornada_id=jornada_id))
+
+    db = conectar()
+    try:
+        db.execute("BEGIN IMMEDIATE")
+
+        admin = db.execute("""
+            SELECT id FROM administradores
+            WHERE id = ? AND ativo = 1
+        """, (session["administrador_id"],)).fetchone()
+
+        if admin is None:
+            db.rollback()
+            session.clear()
+            return redirect(url_for("login_admin"))
+
+        jornada = db.execute("""
+            SELECT * FROM jornadas WHERE id = ?
+        """, (jornada_id,)).fetchone()
+
+        if jornada is None or jornada["status"] != "ENCERRADA":
+            db.rollback()
+            abort(404)
+
+        ganhos = db.execute("""
+            SELECT * FROM ganhos WHERE jornada_id = ?
+        """, (jornada_id,)).fetchone()
+
+        if ganhos is None:
+            db.rollback()
+            flash("Jornada sem registro de ganhos. Correção cancelada.", "erro")
+            return redirect(url_for("painel_admin"))
+
+        despesas_atuais = db.execute("""
+            SELECT id, categoria, valor, descricao
+            FROM despesas WHERE jornada_id = ?
+            ORDER BY id
+        """, (jornada_id,)).fetchall()
+
+        anteriores = {
+            "km": {c: jornada[c] for c in campos_km},
+            "ganhos": {c: ganhos[c] for c in campos_ganhos},
+            "despesas": [dict(r) for r in despesas_atuais]
+        }
+
+        # Preserva as descrições e os IDs de despesas existentes.
+        despesas_por_categoria = {}
+        for registro in despesas_atuais:
+            despesas_por_categoria.setdefault(
+                registro["categoria"], []
+            ).append(registro)
+
+        for categoria in categorias.values():
+            if len(despesas_por_categoria.get(categoria, [])) > 1:
+                raise ValueError(
+                    "Há despesas duplicadas na categoria " + categoria +
+                    ". Faça uma conferência antes de corrigir."
+                )
+
+        dinheiro_total = (
+            novos_ganhos["uber_dinheiro"] +
+            novos_ganhos["noventa_nove_dinheiro"] +
+            (novos_ganhos["particulares_dinheiro"] or 0)
+        )
+
+        novos_ganhos_completos = dict(novos_ganhos)
+        novos_ganhos_completos["dinheiro_total"] = round(dinheiro_total, 2)
+
+        anteriores["ganhos"]["dinheiro_total"] = ganhos["dinheiro_total"]
+
+        mudou = (
+            any(jornada[c] != novos_km[c] for c in campos_km)
+            or any(ganhos[c] != novos_ganhos[c] for c in campos_ganhos)
+            or ganhos["dinheiro_total"] != novos_ganhos_completos["dinheiro_total"]
+            or any(
+                round(sum(
+                    r["valor"] for r in despesas_por_categoria.get(categoria, [])
+                ), 2) != valor
+                for categoria, valor in novas_despesas.items()
+            )
+        )
+
+        if not mudou:
+            db.rollback()
+            flash("Nenhuma alteração identificada.", "erro")
+            return redirect(url_for("editar_jornada_admin", jornada_id=jornada_id))
+
+        db.execute("""
+            UPDATE jornadas SET km_inicial = ?, km_final = ?
+            WHERE id = ?
+        """, (novos_km["km_inicial"], novos_km["km_final"], jornada_id))
+
+        campos_atualizados = list(campos_ganhos) + ["dinheiro_total"]
+        atribuicoes = ", ".join(c + " = ?" for c in campos_atualizados)
+
+        db.execute(
+            "UPDATE ganhos SET " + atribuicoes + " WHERE id = ?",
+            tuple(novos_ganhos_completos[c] for c in campos_atualizados)
+            + (ganhos["id"],)
+        )
+
+        for categoria, valor in novas_despesas.items():
+            existentes = despesas_por_categoria.get(categoria, [])
+            if existentes:
+                db.execute("""
+                    UPDATE despesas SET valor = ? WHERE id = ?
+                """, (valor, existentes[0]["id"]))
+            elif valor > 0:
+                db.execute("""
+                    INSERT INTO despesas (jornada_id, categoria, valor, descricao)
+                    VALUES (?, ?, ?, ?)
+                """, (jornada_id, categoria, valor, None))
+
+        despesas_finais = db.execute("""
+            SELECT id, categoria, valor, descricao
+            FROM despesas WHERE jornada_id = ?
+            ORDER BY id
+        """, (jornada_id,)).fetchall()
+
+        novos = {
+            "km": novos_km,
+            "ganhos": novos_ganhos_completos,
+            "despesas": [dict(r) for r in despesas_finais]
+        }
+
+        db.execute("""
+            INSERT INTO auditoria_jornadas (
+                jornada_id, administrador_id, data_alteracao,
+                motivo, dados_anteriores, dados_novos
+            ) VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            jornada_id,
+            admin["id"],
+            datetime.now().astimezone().isoformat(timespec="seconds"),
+            motivo,
+            json.dumps(anteriores, ensure_ascii=False),
+            json.dumps(novos, ensure_ascii=False)
+        ))
+
+        db.commit()
+        flash("Jornada corrigida e auditoria registrada.", "sucesso")
+        return redirect(url_for("painel_admin"))
+
+    except (sqlite3.Error, ValueError):
+        db.rollback()
+        app.logger.exception("Erro ao salvar correção da jornada")
+        flash("Correção não gravada. Verifique os dados da jornada.", "erro")
+        return redirect(url_for("editar_jornada_admin", jornada_id=jornada_id))
+    finally:
+        db.close()
+
+
 @app.route("/exportar_relatorio_excel")
 def exportar_relatorio_excel():
     if "administrador_id" not in session:
