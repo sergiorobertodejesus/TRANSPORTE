@@ -32,7 +32,59 @@
             .admin-numero { font-size: 22px; }
             .admin-card { padding: 14px; }
         }
-    </style>
+
+/* RESPONSIVIDADE EXCLUSIVA DO PAINEL */
+body:has(> .admin-painel) {
+    display: block;
+    min-height: 100vh;
+}
+.admin-painel {
+    width: 100%;
+    min-width: 0;
+}
+.admin-painel .admin-card,
+.admin-painel .admin-secao {
+    min-width: 0;
+    max-width: 100%;
+}
+.admin-painel .admin-tabela {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 600px) {
+    .admin-painel {
+        margin: 0 auto;
+        padding: 12px;
+    }
+    .admin-topo {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .admin-topo h1 {
+        font-size: 24px;
+    }
+    .admin-indicadores,
+    .admin-filtros {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+    }
+    .admin-acoes {
+        flex-direction: column;
+    }
+    .admin-acoes .admin-botao {
+        width: 100%;
+    }
+    .admin-card {
+        padding: 14px;
+    }
+    .admin-tabela th,
+    .admin-tabela td {
+        padding: 10px 12px;
+    }
+}
+
+</style>
 </head>
 <body>
     <main class="admin-painel">
