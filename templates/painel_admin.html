@@ -105,8 +105,8 @@ body:has(> .admin-painel) {
                 <div class="admin-numero">{{ em_andamento }}</div>
             </article>
             <article class="admin-card">
-                <h3>Jornadas encerradas</h3>
-                <div class="admin-numero">{{ encerradas }}</div>
+                <h3>Total líquido — consulta</h3>
+                <div class="admin-numero">R$ {{ "%.2f"|format(faturamento_total - despesas_total) }}</div>
             </article>
             <article class="admin-card">
                 <h3>Faturamento bruto — consulta</h3>
