@@ -20,3 +20,6 @@ credenciais_iniciais.txt
 # Backups criados durante o desenvolvimento
 *.antes_*
 *.erro_backup.*
+
+# Backups locais da ER Transporte
+backups/
