@@ -105,11 +105,11 @@ body:has(> .admin-painel) {
                 <div class="admin-numero">{{ em_andamento }}</div>
             </article>
             <article class="admin-card">
-                <h3>Total líquido — consulta</h3>
+                <h3>Resultado líquido — período</h3>
                 <div class="admin-numero">R$ {{ "%.2f"|format(faturamento_total - despesas_total) }}</div>
             </article>
             <article class="admin-card">
-                <h3>Faturamento bruto — consulta</h3>
+                <h3>Faturamento bruto — período</h3>
                 <div class="admin-numero">R$ {{ "%.2f"|format(faturamento_total) }}</div>
                 {% if jornadas_inconsistentes %}
                 <p style="font-size:12px; color:#a32626; margin:8px 0 0;">
@@ -119,11 +119,11 @@ body:has(> .admin-painel) {
                 {% endif %}
             </article>
             <article class="admin-card">
-                <h3>Despesas — consulta</h3>
+                <h3>Despesas — período</h3>
                 <div class="admin-numero">R$ {{ "%.2f"|format(despesas_total) }}</div>
             </article>
             <article class="admin-card">
-                <h3>Jornadas encontradas</h3>
+                <h3>Jornadas no período</h3>
                 <div class="admin-numero">{{ jornadas|length }}</div>
             </article>
         </section>
@@ -188,6 +188,20 @@ body:has(> .admin-painel) {
                 </a>
             </div>
         </form>
+
+        <section class="admin-card" style="margin: 18px 0;">
+            <h2>Resumo do período selecionado</h2>
+            <p><strong>Quilômetros rodados:</strong>
+                {{ km_total }} km
+            </p>
+            <p><strong>Motoristas que realizaram jornadas:</strong>
+                {% if motoristas_periodo %}
+                    {{ motoristas_periodo|join(", ") }}
+                {% else %}
+                    Nenhum motorista no período.
+                {% endif %}
+            </p>
+        </section>
 
         <h2>Histórico de jornadas</h2>
         <p class="admin-nota">O faturamento bruto considera Uber + 99. As despesas aparecem separadamente e não são descontadas do indicador R$/km. O resumo financeiro acompanha os filtros selecionados.</p>
@@ -490,6 +504,14 @@ body:has(> .admin-painel) {
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <input type="hidden" name="motorista_id" value="{{ m.id }}">
                                 <button class="admin-botao" type="submit">Desativar</button>
+                            </form>
+                            {% else %}
+                            <form method="post"
+                                  action="{{ url_for('reativar_motorista') }}"
+                                  onsubmit="return confirm('Deseja reativar este motorista? Será necessário configurar uma nova escala.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="motorista_id" value="{{ m.id }}">
+                                <button class="admin-botao" type="submit">Reativar</button>
                             </form>
                             {% endif %}
                         </div>

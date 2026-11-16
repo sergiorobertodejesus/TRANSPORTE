@@ -275,6 +275,22 @@ def painel_admin():
     data_inicio = request.args.get("data_inicio", "").strip()
     data_fim = request.args.get("data_fim", "").strip()
 
+    # Semana atual somente ao abrir o painel sem filtros.
+    # Datas vazias enviadas pelo formulário permitem todo o histórico.
+    if (
+        "data_inicio" not in request.args
+        and "data_fim" not in request.args
+    ):
+        from datetime import timedelta
+        from zoneinfo import ZoneInfo
+
+        hoje = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+        segunda = hoje - timedelta(days=hoje.weekday())
+        domingo = segunda + timedelta(days=6)
+
+        data_inicio = segunda.isoformat()
+        data_fim = domingo.isoformat()
+
     filtros = []
     parametros = []
 
@@ -454,6 +470,8 @@ def painel_admin():
     faturamento_total = 0
     despesas_total = 0
     jornadas_inconsistentes = 0
+    km_total = 0
+    motoristas_periodo = set()
 
     for j in jornadas:
         total_particulares = j["corridas_particulares"] or 0
@@ -482,6 +500,10 @@ def painel_admin():
 
         faturamento_total += faturamento
         despesas_total += despesas
+
+        motoristas_periodo.add(j["motorista"])
+        if distancia is not None and distancia > 0:
+            km_total += distancia
 
         registros.append({
             "id": j["id"],
@@ -555,6 +577,8 @@ def painel_admin():
         faturamento_total=faturamento_total,
         despesas_total=despesas_total,
         jornadas_inconsistentes=jornadas_inconsistentes,
+        km_total=km_total,
+        motoristas_periodo=sorted(motoristas_periodo),
     )
 
 @app.route("/admin/jornada/<int:jornada_id>/editar", methods=["GET"])
@@ -2302,6 +2326,73 @@ def desativar_motorista():
         db.rollback()
         app.logger.exception("Erro ao desativar motorista")
         flash("Não foi possível desativar o motorista.", "erro")
+
+    finally:
+        db.close()
+
+    return redirect(url_for("painel_admin"))
+
+
+@app.route("/reativar_motorista", methods=["POST"])
+def reativar_motorista():
+    import sqlite3
+
+    if "administrador_id" not in session:
+        return redirect(url_for("login_admin"))
+
+    motorista_id = request.form.get("motorista_id", "").strip()
+
+    if not motorista_id.isdigit():
+        flash("Motorista inválido.", "erro")
+        return redirect(url_for("painel_admin"))
+
+    db = conectar()
+
+    try:
+        motorista = db.execute(
+            "SELECT id, nome, ativo FROM motoristas WHERE id = ?",
+            (int(motorista_id),)
+        ).fetchone()
+
+        if not motorista:
+            flash("Motorista não encontrado.", "erro")
+            return redirect(url_for("painel_admin"))
+
+        if motorista["ativo"]:
+            flash("Esse motorista já está ativo.", "erro")
+            return redirect(url_for("painel_admin"))
+
+        acesso = db.execute("""
+            SELECT motorista_id
+            FROM acessos
+            WHERE motorista_id = ?
+        """, (int(motorista_id),)).fetchone()
+
+        if not acesso:
+            flash("Motorista sem cadastro de acesso. Reativação cancelada.", "erro")
+            return redirect(url_for("painel_admin"))
+
+        db.execute(
+            "UPDATE motoristas SET ativo = 1 WHERE id = ?",
+            (int(motorista_id),)
+        )
+
+        db.execute(
+            "UPDATE acessos SET ativo = 1 WHERE motorista_id = ?",
+            (int(motorista_id),)
+        )
+
+        db.commit()
+
+        flash(
+            "Motorista reativado. Configure uma nova escala antes do próximo acesso.",
+            "sucesso"
+        )
+
+    except sqlite3.Error:
+        db.rollback()
+        app.logger.exception("Erro ao reativar motorista")
+        flash("Não foi possível reativar o motorista.", "erro")
 
     finally:
         db.close()
