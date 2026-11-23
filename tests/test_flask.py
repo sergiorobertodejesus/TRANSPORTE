@@ -48,6 +48,27 @@ class TestFlaskIsolado(unittest.TestCase):
                     resposta = cliente.get("/")
 
                     self.assertEqual(resposta.status_code, 200)
+
+                    # Verificar acessos sem autenticação.
+                    for rota, destino in (
+                        ("/painel_admin", "/login_admin"),
+                        ("/motorista", "/login_motorista"),
+                        ("/foto_jornada/arquivo_teste.jpg", "/login_motorista"),
+                    ):
+                        with self.subTest(rota=rota):
+                            resposta = cliente.get(rota)
+                            self.assertEqual(resposta.status_code, 302)
+                            self.assertTrue(
+                                resposta.headers["Location"].endswith(destino)
+                            )
+
+                    # POST sem token CSRF deve ser bloqueado.
+                    resposta = cliente.post(
+                        "/jornada",
+                        data={"acao": "iniciar"}
+                    )
+                    self.assertEqual(resposta.status_code, 400)
+
                     self.assertTrue(caminho_banco.exists())
                     self.assertTrue(caminho_fotos.is_dir())
 
