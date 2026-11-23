@@ -69,6 +69,32 @@ class TestFlaskIsolado(unittest.TestCase):
                     )
                     self.assertEqual(resposta.status_code, 400)
 
+
+                    # Sessão administrativa inexistente.
+                    with cliente.session_transaction() as sessao:
+                        sessao["administrador_id"] = 999999
+
+                    resposta = cliente.get("/painel_admin")
+                    self.assertEqual(resposta.status_code, 302)
+                    self.assertTrue(
+                        resposta.headers["Location"].endswith("/login_admin")
+                    )
+
+                    # Sessão de motorista inexistente.
+                    with cliente.session_transaction() as sessao:
+                        sessao.clear()
+                        sessao["motorista_id"] = 999999
+
+                    resposta = cliente.get("/motorista")
+                    self.assertEqual(resposta.status_code, 302)
+                    self.assertTrue(
+                        resposta.headers["Location"].endswith("/login_motorista")
+                    )
+
+                    # Limpar sessão após as verificações.
+                    with cliente.session_transaction() as sessao:
+                        sessao.clear()
+
                     self.assertTrue(caminho_banco.exists())
                     self.assertTrue(caminho_fotos.is_dir())
 
