@@ -424,6 +424,90 @@ class TestFlaskIsolado(unittest.TestCase):
                             self.assertEqual(
                                 jornadas[0]["status"], "EM_ANDAMENTO"
                             )
+
+                        finally:
+                            db.close()
+
+                        # Teste de encerramento financeiro.
+                        with cliente.session_transaction() as sessao:
+                            sessao.clear()
+                            sessao["motorista_id"] = motoristas[0]
+                            sessao["nome_motorista"] = "Motorista Bloqueio 1"
+
+                        pagina = cliente.get("/motorista")
+                        self.assertEqual(pagina.status_code, 200)
+                        token = extrair_csrf(pagina.data)
+
+                        resposta = cliente.post("/jornada", data={
+                            "acao": "encerrar",
+                            "csrf_token": token,
+                            "km_final": "1150",
+                            "bateria_final": "50",
+                            "uber_total": "300",
+                            "uber_dinheiro": "50",
+                            "99_total": "200",
+                            "99_dinheiro": "30",
+                            "corridas_particulares": "0",
+                            "particulares_dinheiro": "0",
+                            "uber_pix": "0",
+                            "99_pix": "0",
+                            "particulares_pix": "0",
+                            "pix_empresa": "0",
+                            "recarga": "40",
+                            "combustivel": "20",
+                            "outras_despesas": "10",
+                            "avaria_final": "nao"
+                        })
+
+                        self.assertEqual(resposta.status_code, 302)
+                        self.assertTrue(
+                            resposta.headers["Location"].endswith("/")
+                        )
+
+                        db = database.conectar()
+                        try:
+                            jornada = db.execute(
+                                "SELECT status, km_inicial, km_final "
+                                "FROM jornadas WHERE motorista_id = ?",
+                                (motoristas[0],)
+                            ).fetchone()
+
+                            self.assertEqual(
+                                jornada["status"], "ENCERRADA"
+                            )
+                            self.assertEqual(jornada["km_inicial"], 1000)
+                            self.assertEqual(jornada["km_final"], 1150)
+
+                            ganhos = db.execute(
+                                "SELECT uber_total, noventa_nove_total, "
+                                "dinheiro_total FROM ganhos "
+                                "WHERE jornada_id = ("
+                                "SELECT id FROM jornadas "
+                                "WHERE motorista_id = ?)",
+                                (motoristas[0],)
+                            ).fetchone()
+
+                            self.assertAlmostEqual(
+                                ganhos["uber_total"], 300
+                            )
+                            self.assertAlmostEqual(
+                                ganhos["noventa_nove_total"], 200
+                            )
+                            self.assertAlmostEqual(
+                                ganhos["dinheiro_total"], 80
+                            )
+
+                            despesas = db.execute(
+                                "SELECT SUM(valor) AS total "
+                                "FROM despesas WHERE jornada_id = ("
+                                "SELECT id FROM jornadas "
+                                "WHERE motorista_id = ?)",
+                                (motoristas[0],)
+                            ).fetchone()
+
+                            self.assertAlmostEqual(
+                                despesas["total"], 70
+                            )
                         finally:
                             db.close()
                     finally:
