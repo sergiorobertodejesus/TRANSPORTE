@@ -295,5 +295,140 @@ class TestFlaskIsolado(unittest.TestCase):
         self.assertFalse(caminho_fotos.exists())
 
 
+    def test_veiculo_ocupado(self):
+        self.assertEqual(os.environ.get("ER_AMBIENTE"), "teste")
+
+        import database
+        from flask import Flask
+
+        with tempfile.TemporaryDirectory() as pasta:
+            banco = Path(pasta) / "jornadas.db"
+
+            with patch.object(database, "DB_PATH", banco):
+                with patch.dict(os.environ, {
+                    "FLASK_SECRET_KEY": "chave-exclusiva-testes"
+                }):
+                    flask_original = Flask
+
+                    def flask_temporario(*args, **kwargs):
+                        kwargs["instance_path"] = str(
+                            Path(pasta) / "instance"
+                        )
+                        return flask_original(*args, **kwargs)
+
+                    with patch("flask.Flask", flask_temporario):
+                        with patch.dict(sys.modules, {"app": None}):
+                            sys.modules.pop("app", None)
+                            import app as modulo_app
+
+                    try:
+                        db = database.conectar()
+                        try:
+                            cursor = db.execute(
+                                "INSERT INTO veiculos (nome, ativo) "
+                                "VALUES ('Veiculo Bloqueio Teste', 1)"
+                            )
+                            veiculo_id = cursor.lastrowid
+                            motoristas = []
+
+                            for numero in (1, 2):
+                                cursor = db.execute(
+                                    "INSERT INTO motoristas (nome, ativo) "
+                                    "VALUES (?, 1)",
+                                    (f"Motorista Bloqueio {numero}",)
+                                )
+                                motorista_id = cursor.lastrowid
+                                motoristas.append(motorista_id)
+
+                                db.execute(
+                                    "INSERT INTO acessos "
+                                    "(motorista_id, usuario, senha_hash, ativo) "
+                                    "VALUES (?, ?, ?, 1)",
+                                    (
+                                        motorista_id,
+                                        f"bloqueio_{numero}",
+                                        "hash_teste"
+                                    )
+                                )
+                                db.execute(
+                                    "INSERT INTO escalas "
+                                    "(motorista_id, veiculo_id, "
+                                    "hora_inicio, hora_fim, ativo) "
+                                    "VALUES (?, ?, '06:00', '14:00', 1)",
+                                    (motorista_id, veiculo_id)
+                                )
+
+                            db.execute(
+                                "INSERT INTO jornadas "
+                                "(motorista_id, veiculo_id, "
+                                "data_inicio, km_inicial, status) "
+                                "VALUES (?, ?, '2026-11-23T08:00:00', "
+                                "1000, 'EM_ANDAMENTO')",
+                                (motoristas[0], veiculo_id)
+                            )
+                            db.commit()
+                        finally:
+                            db.close()
+
+                        cliente = modulo_app.app.test_client()
+
+                        with cliente.session_transaction() as sessao:
+                            sessao["motorista_id"] = motoristas[1]
+                            sessao["nome_motorista"] = "Motorista Bloqueio 2"
+
+                        pagina = cliente.get("/motorista")
+                        self.assertEqual(pagina.status_code, 200)
+                        token = extrair_csrf(pagina.data)
+
+                        itens = (
+                            "retrovisores", "farol_alto",
+                            "seta_dianteira", "seta_traseira",
+                            "luz_freio", "brake_light", "pneus",
+                            "avarias_bancos", "avarias_painel",
+                            "riscos_portas", "outras_avarias"
+                        )
+
+                        dados = {
+                            "acao": "iniciar",
+                            "km_inicial": "1100",
+                            "bateria_inicial": "80",
+                            "csrf_token": token
+                        }
+                        dados.update({item: "sim" for item in itens})
+
+                        resposta = cliente.post(
+                            "/jornada",
+                            data=dados,
+                            follow_redirects=False
+                        )
+                        self.assertEqual(resposta.status_code, 302)
+
+                        with cliente.session_transaction() as sessao:
+                            mensagens = sessao.get("_flashes", [])
+                            self.assertTrue(any(
+                                "veículo já possui uma jornada"
+                                in mensagem
+                                for _, mensagem in mensagens
+                            ))
+
+                        db = database.conectar()
+                        try:
+                            jornadas = db.execute(
+                                "SELECT motorista_id, status "
+                                "FROM jornadas ORDER BY id"
+                            ).fetchall()
+                            self.assertEqual(len(jornadas), 1)
+                            self.assertEqual(
+                                jornadas[0]["motorista_id"], motoristas[0]
+                            )
+                            self.assertEqual(
+                                jornadas[0]["status"], "EM_ANDAMENTO"
+                            )
+                        finally:
+                            db.close()
+                    finally:
+                        sys.modules.pop("app", None)
+
+
 if __name__ == "__main__":
     unittest.main()
