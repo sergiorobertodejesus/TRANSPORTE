@@ -91,6 +91,63 @@ class TestFlaskIsolado(unittest.TestCase):
                         resposta.headers["Location"].endswith("/login_motorista")
                     )
 
+
+                    # Criar usuários fictícios no banco temporário.
+                    from werkzeug.security import generate_password_hash
+
+                    db = database.conectar()
+                    try:
+                        cursor = db.execute(
+                            "INSERT INTO administradores "
+                            "(usuario, senha_hash, ativo) VALUES (?, ?, 1)",
+                            ("admin_teste", generate_password_hash("senha_teste"))
+                        )
+                        admin_id = cursor.lastrowid
+
+                        cursor = db.execute(
+                            "INSERT INTO motoristas (nome, ativo) VALUES (?, 1)",
+                            ("Motorista Teste",)
+                        )
+                        motorista_id = cursor.lastrowid
+
+                        db.execute(
+                            "INSERT INTO acessos "
+                            "(motorista_id, usuario, senha_hash, ativo) "
+                            "VALUES (?, ?, ?, 1)",
+                            (
+                                motorista_id,
+                                "motorista_teste",
+                                generate_password_hash("senha_teste")
+                            )
+                        )
+                        db.commit()
+                    finally:
+                        db.close()
+
+                    # Motorista válido não acessa painel administrativo.
+                    with cliente.session_transaction() as sessao:
+                        sessao.clear()
+                        sessao["motorista_id"] = motorista_id
+                        sessao["nome_motorista"] = "Motorista Teste"
+
+                    resposta = cliente.get("/painel_admin")
+                    self.assertEqual(resposta.status_code, 302)
+                    self.assertTrue(
+                        resposta.headers["Location"].endswith("/login_admin")
+                    )
+
+                    # Administrador válido não acessa área do motorista.
+                    with cliente.session_transaction() as sessao:
+                        sessao.clear()
+                        sessao["administrador_id"] = admin_id
+                        sessao["administrador_usuario"] = "admin_teste"
+
+                    resposta = cliente.get("/motorista")
+                    self.assertEqual(resposta.status_code, 302)
+                    self.assertTrue(
+                        resposta.headers["Location"].endswith("/login_motorista")
+                    )
+
                     # Limpar sessão após as verificações.
                     with cliente.session_transaction() as sessao:
                         sessao.clear()
