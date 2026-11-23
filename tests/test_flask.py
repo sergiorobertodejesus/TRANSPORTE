@@ -1,4 +1,5 @@
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -31,6 +32,8 @@ class TestFlaskIsolado(unittest.TestCase):
                         )
                         return flask_original(*args, **kwargs)
 
+                    self.addCleanup(sys.modules.pop, "app", None)
+
                     with patch("flask.Flask", flask_temporario):
                         import app as modulo_app
 
@@ -47,6 +50,8 @@ class TestFlaskIsolado(unittest.TestCase):
                     self.assertEqual(resposta.status_code, 200)
                     self.assertTrue(caminho_banco.exists())
                     self.assertTrue(caminho_fotos.is_dir())
+
+
 
         self.assertFalse(caminho_banco.exists())
         self.assertFalse(caminho_fotos.exists())
