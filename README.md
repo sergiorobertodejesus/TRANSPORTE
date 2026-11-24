@@ -80,9 +80,9 @@ A rotina `limpar_fotos.py` realiza a limpeza de fotografias de jornadas encerrad
 
 ## Implantação
 
-A aplicação está implantada na AWS EC2 com Ubuntu, Gunicorn e Nginx. Os procedimentos específicos de publicação, reinício, backup e recuperação serão detalhados na documentação operacional.
+A aplicação está implantada na AWS EC2 com Ubuntu, Gunicorn e Nginx. Os procedimentos de publicação, reinício, backup e recuperação estão descritos na documentação operacional.
 
-## Documentação planejada
+## Documentação técnica
 
 - `docs/arquitetura.md`: componentes e fluxos.
 - `docs/banco_de_dados.md`: tabelas e relacionamentos.
@@ -90,6 +90,7 @@ A aplicação está implantada na AWS EC2 com Ubuntu, Gunicorn e Nginx. Os proce
 - `docs/implantacao_aws.md`: implantação e serviços.
 - `docs/backup_recuperacao.md`: cópias de segurança e restauração.
 - `docs/manutencao.md`: tarefas recorrentes e limpeza de fotografias.
+- `docs/testes_automatizados.md`: execução, isolamento e cobertura dos testes.
 
 ## Diretriz de evolução
 
