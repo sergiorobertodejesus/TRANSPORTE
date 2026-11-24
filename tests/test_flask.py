@@ -438,6 +438,74 @@ class TestFlaskIsolado(unittest.TestCase):
                         self.assertEqual(pagina.status_code, 200)
                         token = extrair_csrf(pagina.data)
 
+
+                        # Teste de encerramentos invalidos.
+                        cenarios = (
+                            (
+                                {"km_final": "999"},
+                                "quilometragem final não pode ser menor"
+                            ),
+                            (
+                                {"uber_total": "-100"},
+                                "Confira os valores financeiros"
+                            ),
+                            (
+                                {"avaria_final": "sim"},
+                                "Descreva a avaria"
+                            ),
+                        )
+
+                        for alteracoes, mensagem in cenarios:
+                            with self.subTest(validacao=alteracoes):
+                                dados = {
+                                    "acao": "encerrar",
+                                    "csrf_token": token,
+                                    "km_final": "1150",
+                                    "bateria_final": "50",
+                                    "uber_total": "300",
+                                    "recarga": "40",
+                                    "avaria_final": "nao"
+                                }
+                                dados.update(alteracoes)
+
+                                resposta = cliente.post(
+                                    "/jornada", data=dados
+                                )
+
+                                self.assertEqual(
+                                    resposta.status_code, 302
+                                )
+
+                                with cliente.session_transaction() as sessao:
+                                    mensagens = sessao.pop("_flashes", [])
+                                    self.assertTrue(any(
+                                        mensagem in aviso
+                                        for _, aviso in mensagens
+                                    ))
+
+                                db = database.conectar()
+                                try:
+                                    jornada = db.execute(
+                                        "SELECT id, status FROM jornadas "
+                                        "WHERE motorista_id = ?",
+                                        (motoristas[0],)
+                                    ).fetchone()
+
+                                    self.assertEqual(
+                                        jornada["status"], "EM_ANDAMENTO"
+                                    )
+
+                                    for tabela in ("ganhos", "despesas"):
+                                        total = db.execute(
+                                            f"SELECT COUNT(*) FROM {tabela} "
+                                            "WHERE jornada_id = ?",
+                                            (jornada["id"],)
+                                        ).fetchone()[0]
+
+                                        self.assertEqual(total, 0)
+                                finally:
+                                    db.close()
+
                         resposta = cliente.post("/jornada", data={
                             "acao": "encerrar",
                             "csrf_token": token,
