@@ -720,6 +720,54 @@ class TestFlaskIsolado(unittest.TestCase):
                         }
                         dados.update(checklist)
 
+                        # Teste de fotografias.
+                        from PIL import Image
+
+                        imagem = BytesIO()
+                        Image.new("RGB", (100, 100), "white").save(
+                            imagem, format="PNG"
+                        )
+                        conteudo_foto = imagem.getvalue()
+
+                        arquivos_invalidos = (
+                            (b"arquivo invalido", "teste.txt"),
+                            (b"imagem corrompida", "teste.png"),
+                            (conteudo_foto, "teste.jpg"),
+                        )
+
+                        for conteudo, nome in arquivos_invalidos:
+                            with self.subTest(arquivo=nome):
+                                dados_invalidos = dict(dados)
+                                dados_invalidos["foto_km_inicial"] = (
+                                    BytesIO(conteudo), nome
+                                )
+
+                                resposta = cliente.post(
+                                    "/jornada",
+                                    data=dados_invalidos
+                                )
+                                self.assertEqual(resposta.status_code, 302)
+
+                                db = database.conectar()
+                                try:
+                                    total = db.execute(
+                                        "SELECT COUNT(*) FROM jornadas "
+                                        "WHERE motorista_id = ?",
+                                        (motoristas[1],)
+                                    ).fetchone()[0]
+                                    self.assertEqual(total, 0)
+                                finally:
+                                    db.close()
+
+                                self.assertEqual(
+                                    list(modulo_app.PASTA_FOTOS.iterdir()),
+                                    []
+                                )
+
+                        dados["foto_km_inicial"] = (
+                            BytesIO(conteudo_foto), "teste.png"
+                        )
+
                         resposta = cliente.post("/jornada", data=dados)
                         self.assertEqual(resposta.status_code, 302)
 
@@ -772,6 +820,61 @@ class TestFlaskIsolado(unittest.TestCase):
                             self.assertEqual(total, 1)
                         finally:
                             db.close()
+
+
+                        # Conferencia do armazenamento e acesso.
+                        nome_foto = jornada["foto_km_inicial"]
+                        self.assertTrue(nome_foto)
+
+                        caminho = modulo_app.PASTA_FOTOS / nome_foto
+
+                        self.assertTrue(caminho.is_file())
+                        self.assertEqual(
+                            caminho.read_bytes(), conteudo_foto
+                        )
+
+                        pasta_publica = Path(
+                            modulo_app.app.static_folder
+                        ).resolve()
+
+                        self.assertNotIn(
+                            pasta_publica, caminho.resolve().parents
+                        )
+
+                        rota_foto = "/foto_jornada/" + nome_foto
+
+                        with cliente.session_transaction() as sessao:
+                            sessao.clear()
+
+                        resposta = cliente.get(rota_foto)
+                        self.assertEqual(resposta.status_code, 302)
+
+                        with cliente.session_transaction() as sessao:
+                            sessao["motorista_id"] = motoristas[0]
+                            sessao["nome_motorista"] = "Motorista Bloqueio 1"
+
+                        resposta = cliente.get(rota_foto)
+                        self.assertIn(resposta.status_code, (403, 404))
+
+                        with cliente.session_transaction() as sessao:
+                            sessao.clear()
+                            sessao["motorista_id"] = motoristas[1]
+                            sessao["nome_motorista"] = "Motorista Bloqueio 2"
+
+                        resposta = cliente.get(rota_foto)
+                        self.assertEqual(resposta.status_code, 200)
+                        self.assertEqual(resposta.data, conteudo_foto)
+                        resposta.close()
+
+                        with cliente.session_transaction() as sessao:
+                            sessao.clear()
+                            sessao["administrador_id"] = admin_id
+                            sessao["nome_administrador"] = "Admin Excel Teste"
+
+                        resposta = cliente.get(rota_foto)
+                        self.assertEqual(resposta.status_code, 200)
+                        self.assertEqual(resposta.data, conteudo_foto)
+                        resposta.close()
 
                     finally:
                         sys.modules.pop("app", None)
