@@ -131,12 +131,82 @@ Esses resultados comprovam a geração e a leitura de cópias naquela data; não
 
 ## 9. Limitações e próximos cuidados
 
-- **Mesmo servidor:** os backups estão armazenados na mesma instância EC2. Uma falha ou perda do disco pode afetar simultaneamente o banco e suas cópias.
-- **Cópia externa:** planejar armazenamento fora da instância, por exemplo S3, avaliando custos, permissões, criptografia, retenção e testes de recuperação antes de ativar.
+- **Mesmo servidor:** os backups locais permanecem na EC2, com copia externa no Amazon S3.
+- **Cópia externa:** Amazon S3 implantado e validado em 24/11/2026.
 - **Fotografias:** as imagens das jornadas ficam fora do SQLite e não estão incluídas no backup do banco. Exigem política de proteção própria, compatível com sua retenção operacional.
 - **Retenção:** 14 dias é a janela configurada para arquivos automáticos locais; não é garantia de recuperação de alterações anteriores a essa janela.
 - **Monitoramento:** conferir regularmente o último backup bem-sucedido e, periodicamente, repetir um teste de recuperação.
 
-## 10. Atualização desta documentação
+## 10. Backup externo no Amazon S3
+
+Implantado em 24/11/2026.
+
+### Configuracao
+
+- Regiao: us-east-2 (Ohio).
+- Prefixo: banco/.
+- Acesso publico bloqueado.
+- Criptografia SSE-S3.
+- Retencao externa: 30 dias.
+- Retencao local: 14 dias.
+- Funcao IAM: ER-Transporte-Backup-S3.
+- AWS CLI v2 instalada.
+- Sem chaves de acesso permanentes.
+
+### Automatizacao
+
+O servico er-backup-banco.service executa o backup
+local e, apos sucesso, envia a copia ao S3.
+
+Script de envio: enviar_backup_s3.py.
+
+Configuracao complementar do systemd:
+
+    /etc/systemd/system/er-backup-banco.service.d/s3.conf
+
+Conteudo:
+
+    [Service]
+    ExecStartPost=/home/ubuntu/projetos/transporte/venv/bin/python /home/ubuntu/projetos/transporte/enviar_backup_s3.py
+
+Agendamento diario: 02h30, horario de Brasilia.
+
+### Monitoramento
+
+    sudo journalctl -u er-backup-banco.service -n 30 --no-pager
+    systemctl list-timers er-backup-banco.timer --all --no-pager
+
+Confirmar as mensagens BACKUP OK e BACKUP S3 OK.
+
+### Recuperacao externa
+
+Selecionar o backup desejado no prefixo banco/.
+Baixar para um diretorio temporario privado.
+Verificar a integridade SQLite e os registros.
+Comparar SHA256 com a copia local, quando disponivel.
+Nunca baixar diretamente sobre o banco de producao.
+
+### Testes realizados em 24/11/2026
+
+- Autenticacao IAM: aprovada.
+- Envio e download S3: aprovados.
+- Comparacao SHA256: arquivos identicos.
+- Integridade SQLite: ok.
+- Recuperacao: 11 tabelas e 145 jornadas.
+- ExecStart e ExecStartPost: sucesso.
+- Tempo de execucao: 1,185 segundos.
+- Pico de memoria: 74 MB.
+- Banco de producao preservado.
+- Timer habilitado.
+
+### Limitacoes
+
+- Fotografias nao incluidas no backup externo.
+- Falhas de envio preservam a copia local.
+- Reenvio automatico de pendencias ainda nao implementado.
+- Primeira execucao agendada com S3 pendente de conferencia.
+- Monitorar custos e armazenamento.
+
+## 11. Atualização desta documentação
 
 Atualizar este documento sempre que mudarem os caminhos, nomes de serviços, agendamentos, política de retenção, mecanismo de armazenamento ou procedimento de recuperação.
