@@ -686,6 +686,93 @@ class TestFlaskIsolado(unittest.TestCase):
                             with self.subTest(filtro=filtro):
                                 conferir_excel(filtro, 0)
 
+
+                        # Teste de inicio valido de jornada.
+                        with cliente.session_transaction() as sessao:
+                            sessao.clear()
+                            sessao["motorista_id"] = motoristas[1]
+                            sessao["nome_motorista"] = "Motorista Bloqueio 2"
+
+                        pagina = cliente.get("/motorista")
+                        self.assertEqual(pagina.status_code, 200)
+                        token = extrair_csrf(pagina.data)
+
+                        checklist = {
+                            "retrovisores": "sim",
+                            "farol_alto": "sim",
+                            "seta_dianteira": "sim",
+                            "seta_traseira": "sim",
+                            "luz_freio": "sim",
+                            "brake_light": "sim",
+                            "pneus": "sim",
+                            "avarias_bancos": "nao",
+                            "avarias_painel": "nao",
+                            "riscos_portas": "sim",
+                            "outras_avarias": "nao"
+                        }
+
+                        dados = {
+                            "acao": "iniciar",
+                            "csrf_token": token,
+                            "km_inicial": "1150",
+                            "bateria_inicial": "80",
+                            "descricao_avarias": "Risco na porta"
+                        }
+                        dados.update(checklist)
+
+                        resposta = cliente.post("/jornada", data=dados)
+                        self.assertEqual(resposta.status_code, 302)
+
+                        with cliente.session_transaction() as sessao:
+                            mensagens = sessao.get("_flashes", [])
+                            self.assertTrue(any(
+                                "Jornada iniciada e checklist registrado"
+                                in aviso for _, aviso in mensagens
+                            ))
+
+                        db = database.conectar()
+                        try:
+                            jornada = db.execute(
+                                "SELECT * FROM jornadas "
+                                "WHERE motorista_id = ? "
+                                "AND status = 'EM_ANDAMENTO'",
+                                (motoristas[1],)
+                            ).fetchone()
+
+                            self.assertIsNotNone(jornada)
+                            self.assertEqual(
+                                jornada["veiculo_id"], veiculo_id
+                            )
+                            self.assertEqual(jornada["km_inicial"], 1150)
+                            self.assertEqual(jornada["bateria_inicial"], 80)
+
+                            registro = db.execute(
+                                "SELECT * FROM checklists "
+                                "WHERE jornada_id = ?",
+                                (jornada["id"],)
+                            ).fetchone()
+
+                            self.assertIsNotNone(registro)
+
+                            for campo, valor in checklist.items():
+                                self.assertEqual(registro[campo], valor)
+
+                            self.assertEqual(
+                                registro["descricao_avarias"],
+                                "Risco na porta"
+                            )
+
+                            total = db.execute(
+                                "SELECT COUNT(*) FROM jornadas "
+                                "WHERE veiculo_id = ? "
+                                "AND status = 'EM_ANDAMENTO'",
+                                (veiculo_id,)
+                            ).fetchone()[0]
+
+                            self.assertEqual(total, 1)
+                        finally:
+                            db.close()
+
                     finally:
                         sys.modules.pop("app", None)
 
