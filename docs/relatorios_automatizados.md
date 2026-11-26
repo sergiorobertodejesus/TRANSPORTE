@@ -100,33 +100,72 @@ Os testes utilizam bancos temporarios.
 A verificacao de conteudo e paginacao do PDF utiliza
 pdfinfo e pdftotext, quando disponiveis.
 
-## 11. Arquitetura planejada
+## 11. Arquitetura implantada
 
-AWS:
-- Geracao diaria as 07h, horario de Brasilia.
-- Agendamento por systemd timer.
-- Armazenamento protegido dos documentos.
+A geracao diaria ocorre na instancia AWS EC2,
+independentemente da aplicacao Flask.
 
-Estacao local Lubuntu:
-- Transferencia segura dos documentos.
-- Prototipo de automacao com Selenium.
-- Registro de envios e falhas.
-- Contingencia de envio manual.
+- Horario: 07h, America/Sao_Paulo.
+- Servico: er-relatorios.service.
+- Timer: er-relatorios.timer.
+- Usuario de execucao: ubuntu.
+- Tipo de servico: oneshot.
+- Limite de execucao: 120 segundos.
+- Diretorio de trabalho: /home/ubuntu/projetos/transporte.
+- Diretorio de saida: /home/ubuntu/relatorios_diarios.
+- Permissoes restritas nos documentos gerados.
 
-A automacao de entrega sera independente do
-sistema de producao.
+O timer utiliza Persistent=true.
 
-O envio nao oficial pelo WhatsApp Web apresenta
-riscos de incompatibilidade e restricao da conta.
+Uma execucao perdida pode ser recuperada
+quando o timer voltar a funcionar.
+
+Isso nao representa recuperacao automatica
+de todos os periodos anteriores.
 
 ## 12. Estado da implantacao
 
-Geracao local implementada e testada.
+- Desenvolvimento concluido.
+- Suite de 56 testes automatizados aprovada.
+- Dependencias instaladas na AWS.
+- Geracao manual em producao validada.
+- Timer diario habilitado e ativo.
+- Primeira execucao agendada: 26/11/2026.
+- Data de referencia: 25/11/2026.
+- Jornadas processadas: 8.
+- Tres documentos gerados.
+- Duracao do servico: aproximadamente 1,4 segundo.
+- Timer confirmado ativo apos reinicializacao.
 
-Pendencias:
-- Implantacao na AWS.
-- Agendamento diario.
-- Politica de retencao dos relatorios.
-- Transferencia automatica.
-- Automacao de entrega.
-- Arquivamento das fotografias.
+## 13. Acompanhamento operacional
+
+Consultar agendamento:
+
+    systemctl list-timers er-relatorios.timer --all
+
+Consultar registros:
+
+    journalctl -u er-relatorios.service -n 50 --no-pager
+
+Consultar resultado da ultima execucao:
+
+    systemctl show er-relatorios.service         -p Result -p ExecMainStatus
+
+O servico oneshot normalmente permanece inativo
+apos concluir sua execucao com sucesso.
+
+Os documentos podem ser consultados no diretorio
+de saida, organizado pela data de referencia.
+
+A transferencia dos documentos deve ocorrer
+por canal autenticado e seguro.
+
+## 14. Pendencias futuras
+
+- Definir politica de retencao dos relatorios.
+- Formalizar procedimento de reemissao.
+- Avaliar arquivamento externo das fotografias.
+- Avaliar integracoes oficiais para distribuicao.
+
+Essas atividades nao impedem a operacao
+da geracao diaria atualmente implantada.
